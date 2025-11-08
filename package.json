@@ -1,5 +1,5 @@
 {
-  "name": "fb-messenger-bot",
+  "name": "fb-messenger-e2ee-bot",
   "version": "2.0.0",
   "main": "app.js",
   "scripts": { "start": "node app.js" },
