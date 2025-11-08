@@ -2,116 +2,143 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>FB Messenger Bot Controller</title>
 <style>
-  body {
-    background: #0a0a0f;
-    color: #39ff14;
-    font-family: 'Courier New', Courier, monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 18px;
-  }
-  #header {
-    font-size: 30px;
-    margin-bottom: 28px;
-    text-shadow: 0 0 14px #39ff14, 0 0 3px #0ff;
-    font-weight: bold;
-    letter-spacing: 1.5px;
-  }
-  .input-label { margin-top: 8px; margin-bottom: 4px; }
-  textarea, input[type=text], input[type=number] {
-    width: 90%;
-    padding: 15px;
-    background: #040404;
-    border: 2px solid #0ac180;
-    color: #39ff14;
-    font-size: 17px;
-    border-radius: 8px;
-    margin: 6px 0 14px 0;
-    outline: none;
-    box-shadow: 0 0 9px #0f2;
-  }
-  button {
-    background: #39ff14;
-    border: none;
-    padding: 15px 32px;
-    margin: 14px 8px;
-    font-size: 18px;
-    color: #0a0a0f;
-    font-weight: bold;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.22s ease;
-    box-shadow: 0 0 12px #39ff14, 0 0 5px #0ff;
-  }
-  button:active { background: #0ac180; }
-  #systemBox {
-    margin: 32px 0 18px 0;
-    width: 97%;
-    background: #000920;
-    border-radius: 14px;
-    border: 3px solid #00ffae;
-    padding: 18px 0;
-    box-shadow: 0 0 22px #39ff14, 0 0 5px #0ff;
-    min-height: 80px;
-    text-align: center;
-  }
-  #systemStatus {
-    display: inline-block;
-    background: #16ff52;
-    border-radius: 14px;
-    width: 16px;
-    height: 16px;
-    box-shadow: 0 0 11px #0f7, 0 0 7px #fff;
-    margin-bottom: -3px;
-  }
-  #sysLabel {
-    font-size: 19px;
-    font-weight: bold;
-    text-shadow: 0 0 6px #39ff14;
-    margin-left: 9px;
-  }
-  #sysMessage {
-    margin-top: 7px;
-    font-size: 17px;
-  }
-  #log {
-    background: #000;
-    border: 2px solid #0ac180;
-    width: 98%;
-    height: 340px;
-    overflow-y: auto;
-    padding: 18px;
-    font-size: 15px;
-    border-radius: 8px;
-    white-space: pre-wrap;
-    margin-top: 18px;
-    box-shadow: 0 0 7px #0f7, 0 0 5px #0ff;
-  }
-  .log-system    { color: #45ff94; }
-  .log-success   { color: #00ffff; font-weight: bold; }
-  .log-status    { color: #53fbfa; }
-  .log-auth      { color: #ffe066; }
-  .log-selector  { color: #7affff; }
-  .log-error     { color: #ff3b3b; font-weight: bold; background: #332222 }
+body {
+  background: linear-gradient(140deg, #050814 0%, #08132a 100%);
+  color: #39ff14;
+  font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+  margin: 0;
+  min-height: 100vh;
+  padding: 0;
+  letter-spacing: 1px;
+}
+#header {
+  font-size: 2.4em;
+  text-align: center;
+  margin: 35px 0 15px 0;
+  text-shadow: 0 0 22px #39ff14, 0 0 8px #0ff;
+  font-weight: bold;
+  letter-spacing: 2.5px;
+  animation: flicker 2s infinite alternate;
+}
+@keyframes flicker {
+  from { filter: brightness(1);}
+  to { filter: brightness(1.25) drop-shadow(0 0 8px #6ff); }
+}
+.box {
+  margin: 18px auto;
+  padding: 30px 14px 30px 14px;
+  background: rgba(0,15,25,0.97);
+  border-radius: 14px;
+  border: 2.5px solid #39ff14;
+  box-shadow: 0 0 28px #39ff1466, 0 0 9px #0ff;
+  width: 95vw; max-width: 480px;
+}
+label, .input-label {
+  font-size: 1.07em;
+  font-weight: 600;
+  margin: 0.15em 0 0.06em 0.2em;
+  letter-spacing: 1px;
+}
+input, textarea {
+  width: 98%; max-width: 98%;
+  margin: 0.17em 0 1em 0; padding: 11px 12px;
+  border: 2px solid #16a085;
+  border-radius: 7px;
+  background: #040808bb;
+  color: #8ffe86;
+  font-size: 1em;
+  outline: none;
+  transition: border 0.16s;
+  box-shadow: 0 0 14px #045;
+}
+input:focus, textarea:focus { border: 2.5px solid #39ff14; color: #fff }
+button {
+  width: 45%;
+  margin: 12px 7px;
+  background: linear-gradient(90deg, #0f9, #39ff14, #00fff5);
+  color: #181a15;
+  font-weight: bold;
+  font-size: 1.12em;
+  border: none;
+  border-radius: 7px;
+  padding: 16px 0;
+  cursor: pointer;
+  box-shadow: 0 0 13px #39ff1499, 0 0 6px #00fff5cc;
+  transition: background 0.2s;
+  outline: none;
+  text-shadow: none;
+}
+button:active { background: linear-gradient(90deg, #18aaa2, #6effd2);}
+#systemBox {
+  margin: 27px 0 19px 0; padding: 27px 8px 12px 8px;
+  width: 98%; min-height: 94px;
+  background: #020c18fe;
+  border-radius: 15px;
+  border: 2.5px solid #0ff3;
+  box-shadow: 0 0 23px #27ffab, 0 0 11px #0f8;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: box-shadow 0.3s;
+}
+#systemStatus {
+  display: inline-block;
+  border-radius: 15px; min-width: 18px; min-height: 18px;
+  margin-bottom: -4px; margin-right: 5px;
+  background: #27ef13; box-shadow: 0 0 21px #27ff1366;
+  transition: background 0.3s, box-shadow 0.3s;
+  border: 2.5px solid #06690a;
+}
+#sysLabel {
+  font-size: 21px; font-weight: bold; letter-spacing: 2px;
+  text-shadow: 0 0 8px #39ff14;
+  margin: 6px 0 4px 0; display: block;
+}
+#sysMessage {
+  font-size: 18px; margin-top: 8px; min-height: 1.3em;
+}
+#log {
+  background: #000;
+  border: 2.5px solid #14ffd2;
+  width: 99%; min-height: 320px; height: 36vh; max-height: 320px;
+  overflow-y: auto;
+  padding: 14px;
+  font-size: 1.01em;
+  border-radius: 10px;
+  margin-top: 22px;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: .8px;
+  box-shadow: 0 0 12px #14ffe444, 0 0 8px #0ff;
+  white-space: pre-wrap;
+  transition: border 0.25s;
+}
+.log-system    { color: #8ffee6; }
+.log-success   { color: #00fff4; font-weight: bold; text-shadow: 0 0 7px #69ffc7; }
+.log-status    { color: #00f78a; text-shadow: 0 0 7px #a7d; }
+.log-auth      { color: #ffe066; }
+.log-selector  { color: #69d5ff; }
+.log-error     { color: #ff3636; font-weight: bold; background: #23181b; border-radius: 7px; padding: 4px 8px; }
+::-webkit-scrollbar { background: #15202b; width: 5px; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #39ff1490; border-radius: 9px;}
 </style>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="header">FB Messenger Bot Controller</div>
-  <label class="input-label">Cookie String:</label>
-  <textarea id="cookieString" placeholder="Paste your Facebook cookie string here"></textarea>
-  <label class="input-label">Thread ID:</label>
-  <input type="text" id="threadId" placeholder="Enter Facebook thread ID" />
-  <label class="input-label">Delay between messages (seconds):</label>
-  <input type="number" id="delay" value="5" min="0" placeholder="Delay in seconds" />
-  <label class="input-label">Message file (.txt):</label>
-  <input type="file" id="msgFile" accept=".txt" />
-  <br />
-  <button id="startBtn">Start Sending</button>
-  <button id="stopBtn">Stop Sending</button>
+  <div class="box">
+    <label class="input-label">Cookie String:</label>
+    <textarea id="cookieString" rows="3" placeholder="Paste your Facebook cookie string here"></textarea>
+    <label class="input-label">Thread ID:</label>
+    <input type="text" id="threadId" placeholder="Enter Facebook thread ID"/>
+    <label class="input-label">Delay between messages (seconds):</label>
+    <input type="number" id="delay" value="5" min="0" placeholder="Delay in seconds"/>
+    <label class="input-label">Message file (.txt):</label>
+    <input type="file" id="msgFile" accept=".txt"/>
+    <button id="startBtn">Start Sending</button>
+    <button id="stopBtn">Stop Sending</button>
+  </div>
+
   <div id="systemBox">
     <span id="systemStatus"></span>
     <span id="sysLabel">SYSTEM CONSOLE</span>
@@ -120,71 +147,65 @@
   <div id="log"></div>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <script>
-  const socket = io();
-  let msgList = [];
-  let count = 0;
-  const cookieStringInput = document.getElementById('cookieString');
-  const threadIdInput = document.getElementById('threadId');
-  const delayInput = document.getElementById('delay');
-  const msgFileInput = document.getElementById('msgFile');
-  const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const logDiv = document.getElementById('log');
-  const sysBox = document.getElementById('systemBox');
-  const sysStatus = document.getElementById('systemStatus');
-  const sysLabel = document.getElementById('sysLabel');
-  const sysMessage = document.getElementById('sysMessage');
-  let sending = false, sysActive = false;
+const socket = io();
+let messages = [];
+let count = 0;
+const cookieStringInput = document.getElementById('cookieString');
+const threadIdInput = document.getElementById('threadId');
+const delayInput = document.getElementById('delay');
+const msgFileInput = document.getElementById('msgFile');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const logDiv = document.getElementById('log');
+const sysStatus = document.getElementById('systemStatus');
+const sysLabel = document.getElementById('sysLabel');
+const sysMessage = document.getElementById('sysMessage');
+let sending = false, sysActive = false;
 
-  msgFileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      msgList = reader.result.split(/
+msgFileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    messages = reader.result.split(/
 ?
 /).filter(line => line.trim() !== '');
-      appendLog('Loaded ' + msgList.length + ' messages from file.', 'system');
-    };
-    reader.readAsText(file);
-  });
-
-  function appendLog(msg, type) {
-    const time = new Date().toLocaleTimeString();
-    let css = 'log-system';
-    if (type) css = 'log-' + type;
-    logDiv.innerHTML += `<div class="${css}">[${time}] ${msg}</div>`;
-    logDiv.scrollTop = logDiv.scrollHeight;
-  }
-
-  startBtn.onclick = () => {
-    const cookieString = cookieStringInput.value.trim();
-    const threadId = threadIdInput.value.trim();
-    const delaySeconds = parseInt(delayInput.value);
-    if (!cookieString) return alert('Enter cookie string');
-    if (!threadId) return alert('Enter thread ID');
-    if (!delaySeconds || delaySeconds < 0) return alert('Enter valid delay');
-    if (msgList.length === 0) return alert('Upload message file (.txt)');
-    count = 0;
-    socket.emit('start', { cookieString, threadId, delaySeconds, messages: msgList });
+    appendLog('Loaded ' + messages.length + ' messages from file.', 'system');
   };
-
-  stopBtn.onclick = () => {
-    socket.emit('stop');
-  };
-
-  socket.on('log', ({ type, msg }) => appendLog(msg, type));
-  socket.on('count', (n) => {
-    count = n; sysMessage.innerHTML = "Messages sent: <b>" + count + "</b>";
-  });
-  socket.on('status_box', ({ active, sending: s, count: n }) => {
-    sysActive = active;
-    sending = s; count = n || 0;
-    sysStatus.style.background = active ? (sending ? '#16ff52': '#ffe066') : '#ff3b3b';
-    sysBox.style.boxShadow = active ? '0 0 22px #39ff14' : '0 0 8px #ff3b3b';
-    sysLabel.textContent = active ? (sending ? "SYSTEM CONSOLE | ACTIVE" : "SYSTEM CONSOLE | DONE") : "SYSTEM CONSOLE | STOPPED";
-    sysMessage.innerHTML = sending ? 'Sending messages... <b>'+count+'</b>' : (active ? 'Done! <b>'+count+'</b>' : 'Idle');
-  });
+  reader.readAsText(file);
+});
+function appendLog(msg, type) {
+  const time = new Date().toLocaleTimeString();
+  let css = 'log-system';
+  if (type) css = 'log-' + type;
+  logDiv.innerHTML += `<div class="${css}">[${time}] <span>${msg}</span></div>`;
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+startBtn.onclick = () => {
+  const cookieString = cookieStringInput.value.trim();
+  const threadId = threadIdInput.value.trim();
+  const delaySeconds = parseInt(delayInput.value);
+  if (!cookieString) return alert('Enter cookie string');
+  if (!threadId) return alert('Enter thread ID');
+  if (!delaySeconds || delaySeconds < 0) return alert('Enter valid delay');
+  if (messages.length === 0) return alert('Upload message file');
+  count = 0;
+  socket.emit('start', { cookieString, threadId, delaySeconds, messages });
+};
+stopBtn.onclick = () => socket.emit('stop');
+socket.on('log', ({ type, msg }) => appendLog(msg, type));
+socket.on('count', n => {
+  count = n; sysMessage.innerHTML = "Messages sent: <b>" + count + "</b>";
+});
+socket.on('status_box', ({ active, sending: s, count: n }) => {
+  sysActive = active; sending = s; count = n || 0;
+  sysStatus.style.background = active ? (sending ? '#57ff36': '#ffe066') : '#ff3b3b';
+  sysStatus.style.boxShadow = active ? (sending ? '0 0 16px #38f,0 0 8px #0ff':'0 0 14px #ff0') : '0 0 20px #fe2266, 0 0 7px #b02750';
+  sysLabel.textContent = active ? (sending ? "SYSTEM CONSOLE | ACTIVE" : "SYSTEM CONSOLE | DONE") : "SYSTEM CONSOLE | STOPPED";
+  sysBox = document.getElementById('systemBox');
+  sysBox.style.boxShadow = active ? (sending ? '0 0 30px #39ff14,0 0 15px #0ff':'0 0 18px #ffe066,0 0 7px #fffa93') : '0 0 26px #fe2266, 0 0 20px #b02081';
+  sysMessage.innerHTML = sending ? 'Sending... <b>'+count+'</b>' : (active ? 'Done! <b>'+count+'</b>' : 'Idle');
+});
 </script>
 </body>
 </html>
