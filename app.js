@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -13,13 +12,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
+// Static assets
 app.use(express.static('public'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
-// Global
-let sending = false;
-let sentCount = 0;
 
 function parseCookieStringToJSON(str) {
   return str.split(';').map(cookie => {
@@ -37,7 +33,8 @@ function parseCookieStringToJSON(str) {
   }).filter(x => x !== null);
 }
 
-async function launchBrowser() {
+async function launchBrowser(socket) {
+  socket.emit('log', {type: 'system', msg: '🚦 Starting Chromium browser...'});
   return puppeteer.launch({
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
@@ -45,43 +42,54 @@ async function launchBrowser() {
   });
 }
 
-async function loadCookiesFromString(page, cookieString) {
+async function loadCookiesFromString(page, cookieString, socket) {
   if (!cookieString) throw new Error('Cookie string is empty');
   const cookies = parseCookieStringToJSON(cookieString);
   await page.setCookie(...cookies);
+  socket.emit('log', {type: 'auth', msg: '🍪 Cookies injected successfully.'});
 }
 
 async function sendMessageToThread(threadId, message, cookieString, socket) {
   if (!threadId) throw new Error('Thread ID required');
-  const browser = await launchBrowser();
+  const browser = await launchBrowser(socket);
   const page = await browser.newPage();
   try {
     await page.setDefaultNavigationTimeout(60000);
-    await loadCookiesFromString(page, cookieString);
+    socket.emit('log', {type: 'system', msg: '🔑 Injecting cookies...' });
+    await loadCookiesFromString(page, cookieString, socket);
 
-    socket.emit('log', `Navigating to thread ${threadId}...`);
+    socket.emit('log', {type: 'status', msg: `🌎 Navigating to thread: ${threadId}`});
     const url = `https://www.facebook.com/messages/t/${threadId}`;
     await page.goto(url, { waitUntil: 'networkidle2' });
 
-    // Find message composer
+    socket.emit('log', {type: 'status', msg: `🕵️ Checking login status...`});
+    const pageTitle = await page.title();
+    if (pageTitle.toLowerCase().includes('login')) {
+      throw new Error('❌ Facebook wants login -- check cookies.');
+    }
+    socket.emit('log', {type: 'success', msg: `✅ Login success, searching for message composer...`});
+
+    // Find message input
     const selectors = [
       'div[contenteditable="true"][role="textbox"]',
       'div[contenteditable="true"]',
-      'textarea'
+      'textarea',
+      'input[type="text"]'
     ];
 
     let composer = null;
     for (const s of selectors) {
+      socket.emit('log', {type: 'selector', msg: `🔍 Trying selector: ${s}`});
       try {
-        await page.waitForSelector(s, { timeout: 5000 });
+        await page.waitForSelector(s, { timeout: 2500 });
         composer = s;
         break;
       } catch (e) {}
     }
     if (!composer) {
-      socket.emit('log', 'Message composer not found, DOM may have changed.');
-      throw new Error('Message composer not found on page');
+      throw new Error('❌ Message box not found - DOM changed or E2EE active!');
     }
+    socket.emit('log', {type: 'selector', msg: `✏️ Message box found: ${composer}`});
 
     await page.focus(composer);
     await page.evaluate((sel, msg) => {
@@ -97,7 +105,7 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
       }
     }, composer, message);
 
-    // Click send
+    // Send
     const sendSelectors = [
       'a[aria-label="Send"]',
       'button[aria-label="Send"]',
@@ -105,7 +113,6 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
       '._30yy._38lh',
       'div[aria-label="Send"]'
     ];
-
     let clicked = false;
     for (const sel of sendSelectors) {
       const exists = await page.$(sel);
@@ -119,31 +126,33 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
       await page.keyboard.press('Enter');
     }
 
-    await page.waitForTimeout(2000);
-    socket.emit('log', `Message sent to thread ${threadId}: "${message}"`);
-
+    socket.emit('log', {type: 'success', msg: `🚀 Message sent: "${message}"`});
+    await page.waitForTimeout(1500);
     await browser.close();
-    return true;
+    return { ok: true };
   } catch (err) {
+    socket.emit('log', {type: 'error', msg: `❌ ${err.message}`});
     await browser.close();
-    socket.emit('log', `Error: ${err.message}`);
     throw err;
   }
 }
 
+let sending = false;
+let sentCount = 0;
 let currentTask = null;
 
 io.on('connection', socket => {
-  socket.emit('log', 'Connected to server');
-
+  socket.emit('log', {type: 'system', msg: '🟢 Connected to bot system.'});
+  socket.emit('status_box', {active: false, sending: false, count: sentCount});
   socket.on('start', async ({ cookieString, threadId, delaySeconds, messages }) => {
     if (currentTask) {
-      socket.emit('log', 'Already sending messages, please stop current task first.');
+      socket.emit('log', {type: 'system', msg: '⚠️ Already sending messages, stop to restart.'});
       return;
     }
     sending = true;
     sentCount = 0;
-    socket.emit('log', 'Starting message sending...');
+    socket.emit('status_box', {active: true, sending: true, count: sentCount});
+    socket.emit('log', {type: 'system', msg: '▶️ Starting message sending...'});
     currentTask = (async () => {
       try {
         for (const message of messages) {
@@ -151,13 +160,16 @@ io.on('connection', socket => {
           await sendMessageToThread(threadId, message, cookieString, socket);
           sentCount++;
           socket.emit('count', sentCount);
+          socket.emit('status_box', {active: true, sending: true, count: sentCount});
           await new Promise(r => setTimeout(r, delaySeconds * 1000));
         }
-        socket.emit('log', 'Finished sending messages.');
+        socket.emit('log', {type: 'system', msg: `✅ All messages sent!`});
+        socket.emit('status_box', {active: true, sending: false, count: sentCount});
         sending = false;
         currentTask = null;
       } catch (e) {
-        socket.emit('log', `Error in sending task: ${e.message}`);
+        socket.emit('log', {type: 'error', msg: `❌ Sending stopped: ${e.message}`});
+        socket.emit('status_box', {active: false, sending: false, count: sentCount});
         sending = false;
         currentTask = null;
       }
@@ -166,7 +178,8 @@ io.on('connection', socket => {
 
   socket.on('stop', () => {
     sending = false;
-    socket.emit('log', 'Stopped message sending.');
+    socket.emit('log', {type: 'system', msg: '⏹️ Stopped message sending.'});
+    socket.emit('status_box', {active: false, sending: false, count: sentCount});
     currentTask = null;
   });
 });
