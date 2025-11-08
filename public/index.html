@@ -1,91 +1,128 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FB Messenger Bot</title>
+<title>FB Messenger Bot Controller</title>
 <style>
   body {
-    background-color: #111;
-    color: #39ff14; /* Neon green */
+    background: #0a0a0f;
+    color: #39ff14;
     font-family: 'Courier New', Courier, monospace;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px;
+    padding: 18px;
   }
+  #header {
+    font-size: 30px;
+    margin-bottom: 28px;
+    text-shadow: 0 0 14px #39ff14, 0 0 3px #0ff;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+  }
+  .input-label { margin-top: 8px; margin-bottom: 4px; }
   textarea, input[type=text], input[type=number] {
     width: 90%;
     padding: 15px;
-    margin: 10px 0;
-    background-color: #222;
-    border: 1px solid #39ff14;
+    background: #040404;
+    border: 2px solid #0ac180;
     color: #39ff14;
-    font-size: 16px;
-    border-radius: 5px;
+    font-size: 17px;
+    border-radius: 8px;
+    margin: 6px 0 14px 0;
     outline: none;
-  }
-  input::placeholder, textarea::placeholder {
-    color: #7fff7f;
+    box-shadow: 0 0 9px #0f2;
   }
   button {
-    background-color: #39ff14;
+    background: #39ff14;
     border: none;
-    padding: 15px 30px;
-    margin: 10px;
+    padding: 15px 32px;
+    margin: 14px 8px;
     font-size: 18px;
-    color: #111;
+    color: #0a0a0f;
     font-weight: bold;
-    border-radius: 5px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition: all 0.22s ease;
+    box-shadow: 0 0 12px #39ff14, 0 0 5px #0ff;
   }
-  button:hover {
-    background-color: #2bb802;
+  button:active { background: #0ac180; }
+  #systemBox {
+    margin: 32px 0 18px 0;
+    width: 97%;
+    background: #000920;
+    border-radius: 14px;
+    border: 3px solid #00ffae;
+    padding: 18px 0;
+    box-shadow: 0 0 22px #39ff14, 0 0 5px #0ff;
+    min-height: 80px;
+    text-align: center;
+  }
+  #systemStatus {
+    display: inline-block;
+    background: #16ff52;
+    border-radius: 14px;
+    width: 16px;
+    height: 16px;
+    box-shadow: 0 0 11px #0f7, 0 0 7px #fff;
+    margin-bottom: -3px;
+  }
+  #sysLabel {
+    font-size: 19px;
+    font-weight: bold;
+    text-shadow: 0 0 6px #39ff14;
+    margin-left: 9px;
+  }
+  #sysMessage {
+    margin-top: 7px;
+    font-size: 17px;
   }
   #log {
-    background-color: #000;
-    border: 1px solid #39ff14;
-    width: 90%;
-    height: 300px;
-    overflow-y: scroll;
-    padding: 15px;
-    font-size: 14px;
+    background: #000;
+    border: 2px solid #0ac180;
+    width: 98%;
+    height: 340px;
+    overflow-y: auto;
+    padding: 18px;
+    font-size: 15px;
+    border-radius: 8px;
     white-space: pre-wrap;
-    margin-top: 20px;
-    border-radius: 5px;
+    margin-top: 18px;
+    box-shadow: 0 0 7px #0f7, 0 0 5px #0ff;
   }
-  #header {
-    font-size: 28px;
-    margin-bottom: 20px;
-    text-shadow: 0 0 10px #39ff14;
-  }
+  .log-system    { color: #45ff94; }
+  .log-success   { color: #00ffff; font-weight: bold; }
+  .log-status    { color: #53fbfa; }
+  .log-auth      { color: #ffe066; }
+  .log-selector  { color: #7affff; }
+  .log-error     { color: #ff3b3b; font-weight: bold; background: #332222 }
 </style>
 </head>
 <body>
   <div id="header">FB Messenger Bot Controller</div>
-
-  <label>Cookie String:</label>
+  <label class="input-label">Cookie String:</label>
   <textarea id="cookieString" placeholder="Paste your Facebook cookie string here"></textarea>
-
-  <label>Thread ID:</label>
+  <label class="input-label">Thread ID:</label>
   <input type="text" id="threadId" placeholder="Enter Facebook thread ID" />
-
-  <label>Delay between messages (seconds):</label>
+  <label class="input-label">Delay between messages (seconds):</label>
   <input type="number" id="delay" value="5" min="0" placeholder="Delay in seconds" />
-
-  <label>Message file (.txt):</label>
+  <label class="input-label">Message file (.txt):</label>
   <input type="file" id="msgFile" accept=".txt" />
-
+  <br />
   <button id="startBtn">Start Sending</button>
   <button id="stopBtn">Stop Sending</button>
-
+  <div id="systemBox">
+    <span id="systemStatus"></span>
+    <span id="sysLabel">SYSTEM CONSOLE</span>
+    <div id="sysMessage">Idle</div>
+  </div>
   <div id="log"></div>
-
-<script src="https://cdn.socket.io/4.6.1/socket.io.min.js" integrity="sha384-rnQpItlKwLnqDR0vlBEPfSRZd14zH62mNPLfeUzsyRmmH7n2cmlQpsu7xnPmqBY+" crossorigin="anonymous"></script>
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <script>
   const socket = io();
+  let msgList = [];
+  let count = 0;
   const cookieStringInput = document.getElementById('cookieString');
   const threadIdInput = document.getElementById('threadId');
   const delayInput = document.getElementById('delay');
@@ -93,48 +130,61 @@
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
   const logDiv = document.getElementById('log');
-
-  let messages = [];
+  const sysBox = document.getElementById('systemBox');
+  const sysStatus = document.getElementById('systemStatus');
+  const sysLabel = document.getElementById('sysLabel');
+  const sysMessage = document.getElementById('sysMessage');
+  let sending = false, sysActive = false;
 
   msgFileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      messages = reader.result.split(/?
+      msgList = reader.result.split(/
+?
 /).filter(line => line.trim() !== '');
-      appendLog(`Loaded ${messages.length} messages from file.`);
+      appendLog('Loaded ' + msgList.length + ' messages from file.', 'system');
     };
     reader.readAsText(file);
   });
 
-  function appendLog(msg) {
+  function appendLog(msg, type) {
     const time = new Date().toLocaleTimeString();
-    logDiv.textContent += `[${time}] ${msg}
-`;
+    let css = 'log-system';
+    if (type) css = 'log-' + type;
+    logDiv.innerHTML += `<div class="${css}">[${time}] ${msg}</div>`;
     logDiv.scrollTop = logDiv.scrollHeight;
   }
 
-  socket.on('log', (msg) => appendLog(msg));
-  socket.on('count', (count) => appendLog(`Messages sent: ${count}`));
-
-  startBtn.addEventListener('click', () => {
+  startBtn.onclick = () => {
     const cookieString = cookieStringInput.value.trim();
     const threadId = threadIdInput.value.trim();
     const delaySeconds = parseInt(delayInput.value);
+    if (!cookieString) return alert('Enter cookie string');
+    if (!threadId) return alert('Enter thread ID');
+    if (!delaySeconds || delaySeconds < 0) return alert('Enter valid delay');
+    if (msgList.length === 0) return alert('Upload message file (.txt)');
+    count = 0;
+    socket.emit('start', { cookieString, threadId, delaySeconds, messages: msgList });
+  };
 
-    if (!cookieString) return alert('Please enter cookie string');
-    if (!threadId) return alert('Please enter thread ID');
-    if (!delaySeconds || delaySeconds < 0) return alert('Please enter valid delay');
-    if (messages.length === 0) return alert('Please upload a message file (.txt)');
-
-    socket.emit('start', { cookieString, threadId, delaySeconds, messages });
-  });
-
-  stopBtn.addEventListener('click', () => {
+  stopBtn.onclick = () => {
     socket.emit('stop');
+  };
+
+  socket.on('log', ({ type, msg }) => appendLog(msg, type));
+  socket.on('count', (n) => {
+    count = n; sysMessage.innerHTML = "Messages sent: <b>" + count + "</b>";
+  });
+  socket.on('status_box', ({ active, sending: s, count: n }) => {
+    sysActive = active;
+    sending = s; count = n || 0;
+    sysStatus.style.background = active ? (sending ? '#16ff52': '#ffe066') : '#ff3b3b';
+    sysBox.style.boxShadow = active ? '0 0 22px #39ff14' : '0 0 8px #ff3b3b';
+    sysLabel.textContent = active ? (sending ? "SYSTEM CONSOLE | ACTIVE" : "SYSTEM CONSOLE | DONE") : "SYSTEM CONSOLE | STOPPED";
+    sysMessage.innerHTML = sending ? 'Sending messages... <b>'+count+'</b>' : (active ? 'Done! <b>'+count+'</b>' : 'Idle');
   });
 </script>
-
 </body>
 </html>
