@@ -1,0 +1,140 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FB Messenger Bot</title>
+<style>
+  body {
+    background-color: #111;
+    color: #39ff14; /* Neon green */
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  textarea, input[type=text], input[type=number] {
+    width: 90%;
+    padding: 15px;
+    margin: 10px 0;
+    background-color: #222;
+    border: 1px solid #39ff14;
+    color: #39ff14;
+    font-size: 16px;
+    border-radius: 5px;
+    outline: none;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #7fff7f;
+  }
+  button {
+    background-color: #39ff14;
+    border: none;
+    padding: 15px 30px;
+    margin: 10px;
+    font-size: 18px;
+    color: #111;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  button:hover {
+    background-color: #2bb802;
+  }
+  #log {
+    background-color: #000;
+    border: 1px solid #39ff14;
+    width: 90%;
+    height: 300px;
+    overflow-y: scroll;
+    padding: 15px;
+    font-size: 14px;
+    white-space: pre-wrap;
+    margin-top: 20px;
+    border-radius: 5px;
+  }
+  #header {
+    font-size: 28px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px #39ff14;
+  }
+</style>
+</head>
+<body>
+  <div id="header">FB Messenger Bot Controller</div>
+
+  <label>Cookie String:</label>
+  <textarea id="cookieString" placeholder="Paste your Facebook cookie string here"></textarea>
+
+  <label>Thread ID:</label>
+  <input type="text" id="threadId" placeholder="Enter Facebook thread ID" />
+
+  <label>Delay between messages (seconds):</label>
+  <input type="number" id="delay" value="5" min="0" placeholder="Delay in seconds" />
+
+  <label>Message file (.txt):</label>
+  <input type="file" id="msgFile" accept=".txt" />
+
+  <button id="startBtn">Start Sending</button>
+  <button id="stopBtn">Stop Sending</button>
+
+  <div id="log"></div>
+
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js" integrity="sha384-rnQpItlKwLnqDR0vlBEPfSRZd14zH62mNPLfeUzsyRmmH7n2cmlQpsu7xnPmqBY+" crossorigin="anonymous"></script>
+<script>
+  const socket = io();
+  const cookieStringInput = document.getElementById('cookieString');
+  const threadIdInput = document.getElementById('threadId');
+  const delayInput = document.getElementById('delay');
+  const msgFileInput = document.getElementById('msgFile');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const logDiv = document.getElementById('log');
+
+  let messages = [];
+
+  msgFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      messages = reader.result.split(/?
+/).filter(line => line.trim() !== '');
+      appendLog(`Loaded ${messages.length} messages from file.`);
+    };
+    reader.readAsText(file);
+  });
+
+  function appendLog(msg) {
+    const time = new Date().toLocaleTimeString();
+    logDiv.textContent += `[${time}] ${msg}
+`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  socket.on('log', (msg) => appendLog(msg));
+  socket.on('count', (count) => appendLog(`Messages sent: ${count}`));
+
+  startBtn.addEventListener('click', () => {
+    const cookieString = cookieStringInput.value.trim();
+    const threadId = threadIdInput.value.trim();
+    const delaySeconds = parseInt(delayInput.value);
+
+    if (!cookieString) return alert('Please enter cookie string');
+    if (!threadId) return alert('Please enter thread ID');
+    if (!delaySeconds || delaySeconds < 0) return alert('Please enter valid delay');
+    if (messages.length === 0) return alert('Please upload a message file (.txt)');
+
+    socket.emit('start', { cookieString, threadId, delaySeconds, messages });
+  });
+
+  stopBtn.addEventListener('click', () => {
+    socket.emit('stop');
+  });
+</script>
+
+</body>
+</html>
