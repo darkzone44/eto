@@ -5,14 +5,12 @@ const socketio = require('socket.io');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const puppeteer = require('puppeteer-core');
-const fs = require('fs');
 
 const upload = multer({ dest: 'uploads/' });
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// Static assets
 app.use(express.static('public'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -28,13 +26,13 @@ function parseCookieStringToJSON(str) {
       domain: '.facebook.com',
       path: '/',
       httpOnly: false,
-      secure: true,
+      secure: true
     };
   }).filter(x => x !== null);
 }
 
 async function launchBrowser(socket) {
-  socket.emit('log', {type: 'system', msg: '🚦 Starting Chromium browser...'});
+  socket.emit('log', { type: 'system', msg: '🌐 Chrome (headless) starting...' });
   return puppeteer.launch({
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
@@ -46,7 +44,7 @@ async function loadCookiesFromString(page, cookieString, socket) {
   if (!cookieString) throw new Error('Cookie string is empty');
   const cookies = parseCookieStringToJSON(cookieString);
   await page.setCookie(...cookies);
-  socket.emit('log', {type: 'auth', msg: '🍪 Cookies injected successfully.'});
+  socket.emit('log', { type: 'auth', msg: '🍪 Cookies injected successfully.' });
 }
 
 async function sendMessageToThread(threadId, message, cookieString, socket) {
@@ -55,21 +53,21 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
   const page = await browser.newPage();
   try {
     await page.setDefaultNavigationTimeout(60000);
-    socket.emit('log', {type: 'system', msg: '🔑 Injecting cookies...' });
+    socket.emit('log', { type: 'system', msg: '🔑 Injecting cookies...' });
     await loadCookiesFromString(page, cookieString, socket);
 
-    socket.emit('log', {type: 'status', msg: `🌎 Navigating to thread: ${threadId}`});
+    socket.emit('log', { type: 'status', msg: `🌎 Navigating to thread: ${threadId}` });
     const url = `https://www.facebook.com/messages/t/${threadId}`;
     await page.goto(url, { waitUntil: 'networkidle2' });
 
-    socket.emit('log', {type: 'status', msg: `🕵️ Checking login status...`});
+    socket.emit('log', { type: 'status', msg: `🔍 Checking login state...` });
     const pageTitle = await page.title();
     if (pageTitle.toLowerCase().includes('login')) {
-      throw new Error('❌ Facebook wants login -- check cookies.');
+      throw new Error('❌ Facebook login required! Cookies expired or invalid.');
     }
-    socket.emit('log', {type: 'success', msg: `✅ Login success, searching for message composer...`});
+    socket.emit('log', { type: 'success', msg: `✅ Login Success.` });
 
-    // Find message input
+    // Input selectors
     const selectors = [
       'div[contenteditable="true"][role="textbox"]',
       'div[contenteditable="true"]',
@@ -79,7 +77,7 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
 
     let composer = null;
     for (const s of selectors) {
-      socket.emit('log', {type: 'selector', msg: `🔍 Trying selector: ${s}`});
+      socket.emit('log', { type: 'selector', msg: `🔍 Trying selector: ${s}` });
       try {
         await page.waitForSelector(s, { timeout: 2500 });
         composer = s;
@@ -87,9 +85,9 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
       } catch (e) {}
     }
     if (!composer) {
-      throw new Error('❌ Message box not found - DOM changed or E2EE active!');
+      throw new Error('❌ Message input not found (DOM changed / E2EE active?)');
     }
-    socket.emit('log', {type: 'selector', msg: `✏️ Message box found: ${composer}`});
+    socket.emit('log', { type: 'selector', msg: `✏️ Message Box Found: ${composer}` });
 
     await page.focus(composer);
     await page.evaluate((sel, msg) => {
@@ -105,7 +103,6 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
       }
     }, composer, message);
 
-    // Send
     const sendSelectors = [
       'a[aria-label="Send"]',
       'button[aria-label="Send"]',
@@ -126,12 +123,12 @@ async function sendMessageToThread(threadId, message, cookieString, socket) {
       await page.keyboard.press('Enter');
     }
 
-    socket.emit('log', {type: 'success', msg: `🚀 Message sent: "${message}"`});
+    socket.emit('log', { type: 'success', msg: `🚀 Message sent: "${message}"` });
     await page.waitForTimeout(1500);
     await browser.close();
     return { ok: true };
   } catch (err) {
-    socket.emit('log', {type: 'error', msg: `❌ ${err.message}`});
+    socket.emit('log', { type: 'error', msg: `❌ ${err.message}` });
     await browser.close();
     throw err;
   }
@@ -142,17 +139,17 @@ let sentCount = 0;
 let currentTask = null;
 
 io.on('connection', socket => {
-  socket.emit('log', {type: 'system', msg: '🟢 Connected to bot system.'});
-  socket.emit('status_box', {active: false, sending: false, count: sentCount});
+  socket.emit('log', { type: 'system', msg: '🟢 Connected to Bot Console.' });
+  socket.emit('status_box', { active: false, sending: false, count: sentCount });
   socket.on('start', async ({ cookieString, threadId, delaySeconds, messages }) => {
     if (currentTask) {
-      socket.emit('log', {type: 'system', msg: '⚠️ Already sending messages, stop to restart.'});
+      socket.emit('log', { type: 'system', msg: '⚠️ Already sending, Stop to restart.' });
       return;
     }
     sending = true;
     sentCount = 0;
-    socket.emit('status_box', {active: true, sending: true, count: sentCount});
-    socket.emit('log', {type: 'system', msg: '▶️ Starting message sending...'});
+    socket.emit('status_box', { active: true, sending: true, count: sentCount });
+    socket.emit('log', { type: 'system', msg: '▶️ Starting automation...' });
     currentTask = (async () => {
       try {
         for (const message of messages) {
@@ -160,16 +157,16 @@ io.on('connection', socket => {
           await sendMessageToThread(threadId, message, cookieString, socket);
           sentCount++;
           socket.emit('count', sentCount);
-          socket.emit('status_box', {active: true, sending: true, count: sentCount});
+          socket.emit('status_box', { active: true, sending: true, count: sentCount });
           await new Promise(r => setTimeout(r, delaySeconds * 1000));
         }
-        socket.emit('log', {type: 'system', msg: `✅ All messages sent!`});
-        socket.emit('status_box', {active: true, sending: false, count: sentCount});
+        socket.emit('log', { type: 'system', msg: `✅ All messages sent!` });
+        socket.emit('status_box', { active: true, sending: false, count: sentCount });
         sending = false;
         currentTask = null;
       } catch (e) {
-        socket.emit('log', {type: 'error', msg: `❌ Sending stopped: ${e.message}`});
-        socket.emit('status_box', {active: false, sending: false, count: sentCount});
+        socket.emit('log', { type: 'error', msg: `❌ Sending stopped: ${e.message}` });
+        socket.emit('status_box', { active: false, sending: false, count: sentCount });
         sending = false;
         currentTask = null;
       }
@@ -178,8 +175,8 @@ io.on('connection', socket => {
 
   socket.on('stop', () => {
     sending = false;
-    socket.emit('log', {type: 'system', msg: '⏹️ Stopped message sending.'});
-    socket.emit('status_box', {active: false, sending: false, count: sentCount});
+    socket.emit('log', { type: 'system', msg: '⏹️ Stopped.' });
+    socket.emit('status_box', { active: false, sending: false, count: sentCount });
     currentTask = null;
   });
 });
