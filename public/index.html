@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>FB Messenger Automation | Neon</title>
+<title>PRINCE E2EE - Facebook Automation Tool</title>
 <style>
 body {
   background: linear-gradient(150deg,#0e0a21 80%,#153b89 100%);
@@ -11,28 +11,28 @@ body {
   font-family: 'Share Tech Mono', monospace;
   margin: 0; padding: 0; min-height: 100vh;
 }
-#branding {
-  background: #141f35;
-  border-radius: 20px;
-  margin: 16px auto 12px auto;
+.branding-card {
+  background: #1e2841;
+  border-radius: 21px;
+  margin: 18px auto 12px auto;
   width: 97vw; max-width: 480px;
-  padding: 17px 5px 11px 5px;
+  padding: 19px 8px 13px 8px;
   box-shadow: 0 0 35px #37fdd7cc, 0 0 19px #144bc0cc;
   text-align: center;
 }
-#brandlogo {
-  width: 70px; height: 70px; border-radius: 40px; margin-bottom: 5px;
+.brandlogo {
+  width: 67px; height: 67px; border-radius: 35px; margin-bottom: 7px;
   background: radial-gradient(circle, #89e,#33a 80%, #144bc0 100%);
   display: inline-block;
   box-shadow: 0 0 50px #9f6fff, 0 0 18px #144bc0;
 }
-.brandtitle { font-size: 2.2em; letter-spacing: 2.5px; color: #31e9ff; text-shadow: 0 0 19px #7f94ff; font-weight: bold; }
-.brandsub { font-size: 1.05em; color: #fff; opacity: 0.78; }
-nav.tabs { margin: 13px auto 4px auto; display: flex; justify-content: center; gap: 9px;}
+.brandtitle { font-size: 2.15em; letter-spacing: 2px; color: #31e9ff; text-shadow: 0 0 19px #7f94ff; font-weight: bold; }
+.brandsub { font-size: 1em; color: #fff; opacity: .8; margin-bottom:6px;}
+nav.tabs { margin: 13px auto 10px auto; display: flex; justify-content: center; gap: 9px;}
 nav .tab {
    border-radius: 8px;
    padding: 7px 16px;
-   font-size:1.15em;
+   font-size:1.18em;
    font-weight: 600;
    background: linear-gradient(90deg,#313a48 94%,#2df8e7 100%);
    color: #a6fff9;
@@ -42,37 +42,44 @@ nav .tab {
 }
 nav .tab.active {
    background: linear-gradient(120deg,#0e9ef2 77%,#52fdbe 100%);
-   color: #1efca4; font-size:1.18em; box-shadow: 0 0 15px #85f8bf;
+   color: #1efca4;
+   box-shadow: 0 0 15px #85f8bf;
 }
-
+button.brand-contact {
+  margin-top: 8px;
+  background: linear-gradient(90deg,#124bfa,#3be2fd 92%);
+  color: #233;
+  font-weight: bold;
+  font-size: 1.08em;
+  border-radius: 8px;
+  padding: 9px 16px 9px 16px;
+  box-shadow: 0 0 11px #39ff14, 0 0 6px #147e9d;
+  border: none;
+  cursor: pointer;
+}
 .card {
   background: #181c2c;
-  border-radius: 15px;
-  box-shadow: 0 0 30px #37fdd7cc,0 0 9px #2256c0bb;
+  border-radius: 17px;
+  box-shadow: 0 0 25px #37fdd7cc,0 0 9px #2256c0bb;
   border: 2.5px solid #114bb2;
-  width: 97vw; max-width: 480px; margin: 14px auto;
+  width: 97vw; max-width: 480px; margin: 18px auto;
   padding: 22px 14px;
 }
-
-.card-section-title { font-size: 1.16em; letter-spacing: .7px; font-weight: 600; margin:8px 0 5px 0; color: #54fcd3;}
-.input-group { margin: 10px 0 15px 0; }
+.card-section-title { font-size: 1.16em; letter-spacing: .7px; font-weight: 600; margin-bottom:1em; color: #54fcd3;}
+.input-group { margin: 7px 0 11px 0; }
 input, textarea {
-  width: 99%; max-width: 99%; margin: 5px 0 10px 0; padding: 12px 14px;
+  width: 98%; margin: 5px 0 10px 0; padding: 11px 13px;
   border: 2px solid #3afcd4; border-radius: 9px;
-  background: #211e39dd; color: #b0fff2; font-size: 1.07em;
+  background: #211e39dd; color: #b0fff2; font-size:1.07em;
   box-shadow: 0 0 11px #143b34,0 0 7px #2ad4fd77;
 }
-input:focus, textarea:focus { border: 2.5px solid #1efca4; color: #f6fff6 }
+input:focus, textarea:focus { border: 2.5px solid #1efca4; color: #fff }
 button {
   background: linear-gradient(90deg,#26d8fa,#1efca4 92%);
-  color: #222;
-  font-weight: bold;
-  font-size: 1.17em;
-  border-radius: 7px;
-  padding: 13px 0;
+  color: #222; font-weight: bold; font-size: 1.17em;
+  border-radius: 9px; padding: 13px 0;
   box-shadow: 0 0 11px #54fcd3,0 0 6px #147e9d;
-  margin: 11px 8px;
-  cursor: pointer; border: none; outline: none;
+  margin: 11px 8px; cursor: pointer; border: none; outline: none;
 }
 button:active { background: linear-gradient(90deg,#23e7e6,#188e8d);}
 .badge { display:inline-block; padding:2px 8px; border-radius:7px; font-weight:bold; font-size:1em;}
@@ -81,8 +88,7 @@ button:active { background: linear-gradient(90deg,#23e7e6,#188e8d);}
 .neon-title { font-size:1.12em; color:#1efca4; font-weight:bold; text-shadow:0 0 8px #38f;}
 .logbox {
   background: #05081d;
-  border: 2px solid #13abfc;
-  border-radius: 11px;
+  border: 2px solid #13abfc; border-radius: 11px;
   min-height: 170px; max-height: 240px; height: 26vh; width: 100%;
   padding: 17px 13px; margin-top: 13px;
   font-size: .98em; font-family: 'Share Tech Mono', monospace;
@@ -102,19 +108,18 @@ button:active { background: linear-gradient(90deg,#23e7e6,#188e8d);}
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div id="branding">
-    <div id="brandlogo"></div>
+  <div class="branding-card">
+    <div class="brandlogo"></div>
     <div class="brandtitle">PRINCE E2EE</div>
     <div class="brandsub">Facebook Automation Tool</div>
     <nav class="tabs">
-        <span class="tab active">Configuration</span>
-        <span class="tab">Automation</span>
-        <span class="tab">Tutorial</span>
+      <span class="tab active">Configuration</span>
+      <span class="tab">Automation</span>
+      <span class="tab">Tutorial</span>
     </nav>
-    <button onclick="window.open('https://facebook.com','_blank')" style="margin-top:8px;">Contact Developer on Facebook</button>
+    <button class="brand-contact" onclick="window.open('https://facebook.com','_blank')">Contact Developer on Facebook</button>
   </div>
-
-  <div class="card">
+  <div class="config-card card">
     <div class="card-section-title">YOUR CONFIGURATION</div>
     <div class="input-group"><input type="text" id="username" placeholder="Your username (display only)"/></div>
     <div class="input-group"><input type="text" id="threadId" placeholder="Facebook Thread ID"/></div>
@@ -122,21 +127,18 @@ button:active { background: linear-gradient(90deg,#23e7e6,#188e8d);}
     <div class="input-group"><textarea id="cookieString" rows="3" placeholder="Paste FB Cookie string"></textarea></div>
     <div class="input-group"><input type="file" id="msgFile" accept=".txt"/></div>
   </div>
-
-  <div class="card">
+  <div class="automation-card card">
     <div class="card-section-title">AUTOMATION CONTROL</div>
     <div>MESSAGES SENT: <span id="sentCount" class="badge">0</span></div>
     <div>STATUS: <span id="statusBadge" class="badge stopped-badge">Stopped</span></div>
     <button id="startBtn">START E2EE</button>
     <button id="stopBtn">STOP E2EE</button>
   </div>
-
-  <div class="card">
+  <div class="system-console-card card">
     <div class="neon-title">SYSTEM CONSOLE <span id="systemBadge" class="badge stopped-badge">Stopped</span></div>
     <div id="sysMsg"></div>
     <div id="logbox" class="logbox"></div>
   </div>
-
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <script>
 const socket = io();
