@@ -1,44 +1,149 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>FB Messenger Test</title>
-<style>
-body{background:#181c2c;color:#39ff14;font-family:'Share Tech Mono',monospace;}
-.box{background:#212844;border:2px solid #39ff14;padding:18px 16px;border-radius:11px;max-width:430px;margin:25px auto;}
-#log{background:#161b2c;border:2px solid #39ff1490;height:200px;overflow-y:auto;margin-top:17px;padding:9px 6px;border-radius:9px;}
-.log-system{color:#23ec9a}
-.log-error{color:#ff6b54}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FB Messenger Automation — UI</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+    :root{--bg:#080308;--panel:#0f0f1a;}
+    body{margin:0;height:100vh;background:linear-gradient(180deg,#02020a 0%, #081026 100%);font-family:'Share Tech Mono', monospace;color:#e6f0ff;display:flex;align-items:center;justify-content:center}
+    .wrap{width:980px;max-width:96%;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .card{padding:16px;border-radius:14px;backdrop-filter: blur(6px);box-shadow:0 8px 30px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.04)}
+    .neon{position:relative;overflow:hidden}
+    .neon h2{margin:0 0 8px;font-size:18px}
+    textarea,input{width:100%;border-radius:8px;padding:10px;background:transparent;border:1px solid rgba(255,255,255,.06);color:inherit;resize:vertical}
+    label{font-size:12px;opacity:.9}
+    .controls{display:flex;gap:10px;margin-top:12px}
+    button{padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+    .btn-start{background:linear-gradient(90deg,#00ffa3,#00d4ff);color:#001}
+    .btn-stop{background:linear-gradient(90deg,#ff6b6b,#ff9a9e);color:#111}
+    .small{font-size:12px;opacity:.8}
+
+    /* colored boxes */
+    .box-a{background:linear-gradient(180deg, rgba(0,255,163,0.06), rgba(0,255,163,0.02));border-left:4px solid #00ffa3}
+    .box-b{background:linear-gradient(180deg, rgba(0,212,255,0.06), rgba(0,212,255,0.02));border-left:4px solid #00d4ff}
+    .box-c{background:linear-gradient(180deg, rgba(255,107,107,0.06), rgba(255,107,107,0.02));border-left:4px solid #ff6b6b}
+    .box-d{background:linear-gradient(180deg, rgba(255,195,113,0.06), rgba(255,195,113,0.02));border-left:4px solid #ffc371}
+
+    /* neon glow animations */
+    .neon .glow{position:absolute;inset:-40%;filter:blur(36px);opacity:.18;mix-blend-mode:screen}
+    .glow.a{background:radial-gradient(circle at 20% 20%, #00ffa3, transparent 40%)}
+    .glow.b{background:radial-gradient(circle at 80% 20%, #00d4ff, transparent 40%)}
+    .glow.c{background:radial-gradient(circle at 20% 80%, #ff6b6b, transparent 40%)}
+    .glow.d{background:radial-gradient(circle at 80% 80%, #ffc371, transparent 40%)}
+
+    .status{font-size:13px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.25);margin-top:10px;min-height:76px}
+
+    footer{grid-column:1/-1;text-align:center;margin-top:6px;color:rgba(255,255,255,.35);font-size:12px}
+  </style>
 </head>
 <body>
-<div class="box">
-  <b>FB Thread Id:</b> <input id="threadId"><br>
-  <b>Text File:</b> <input type="file" id="msgFile"><br>
-  <button id="start">Start</button>
-  <div id="log"></div>
-</div>
-<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
-<script>
-const socket = io(window.location.origin, { transports: ["websocket"] });
-const logDiv = document.getElementById('log');
-function log(msg,type){ logDiv.innerHTML+=`<div class='log-${type||"system"}'>${msg}</div>`; logDiv.scrollTop=logDiv.scrollHeight;}
-let messages=[];
-document.getElementById('msgFile').addEventListener('change',e=>{
-  const f=e.target.files[0]; if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{messages=r.result.split(/
-?
-/).filter(x=>x); log('Loaded '+messages.length+' messages.','system');};
-  r.readAsText(f);
-});
-socket.on('log',d=>log(d.msg,d.type));
-document.getElementById('start').onclick=()=>{
-  socket.emit('start',{
-    threadId:document.getElementById('threadId').value.trim(),
-    messages
-  });
-};
-</script>
+  <div class="wrap">
+    <div class="card neon box-a">
+      <div class="glow a"></div>
+      <h2>Facebook Cookie</h2>
+      <label class="small">Paste your full cookie string here (example starts with datr=...; fr=...)</label>
+      <textarea id="cookie" rows="4" placeholder="datr=...; fr=...; sb=...; ..."></textarea>
+      <div class="small" style="margin-top:8px">Keep this private. This UI only posts to the local server.</div>
+    </div>
+
+    <div class="card neon box-b">
+      <div class="glow b"></div>
+      <h2>Thread ID & Delay</h2>
+      <label class="small">Messenger Thread ID</label>
+      <input id="thread" placeholder="61564176744081" />
+      <label class="small" style="margin-top:8px">Delay between messages (ms)</label>
+      <input id="delay" placeholder="3000" />
+      <label class="small" style="margin-top:8px">Mode</label>
+      <select id="mode"><option value="once">Send each message once</option><option value="loop">Loop messages</option></select>
+      <div style="margin-top:8px" class="small">Max send (0 = unlimited)</div>
+      <input id="maxsend" placeholder="0" />
+    </div>
+
+    <div class="card neon box-c">
+      <div class="glow c"></div>
+      <h2>Messages (one per line)</h2>
+      <label class="small">Paste messages here or use upload below</label>
+      <textarea id="messages" rows="10" placeholder="Hello
+This is message 2"></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <input type="file" id="fileInput" accept=".txt" />
+        <div class="small">Upload a .txt with one message per line</div>
+      </div>
+    </div>
+
+    <div class="card neon box-d">
+      <div class="glow d"></div>
+      <h2>Controls & Status</h2>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button id="start" class="btn-start">Start</button>
+        <button id="stop" class="btn-stop">Stop</button>
+      </div>
+      <div class="status" id="status">Idle. Fill cookie, thread id, messages and press Start.</div>
+    </div>
+
+    <footer>FB Messenger Automation — Use responsibly. Not for spam/abuse.</footer>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const statusBox = document.getElementById('status');
+    const fileInput = document.getElementById('fileInput');
+
+    fileInput.addEventListener('change', (ev) => {
+      const f = ev.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { document.getElementById('messages').value = r.result; };
+      r.readAsText(f);
+    });
+
+    async function postJSON(path, body) {
+      const res = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      return res.json();
+    }
+
+    startBtn.addEventListener('click', async () => {
+      const cookie = document.getElementById('cookie').value.trim();
+      const thread = document.getElementById('thread').value.trim();
+      const delay = parseInt(document.getElementById('delay').value || '3000', 10);
+      const mode = document.getElementById('mode').value;
+      const maxsend = parseInt(document.getElementById('maxsend').value || '0', 10);
+      const raw = document.getElementById('messages').value;
+      if (!cookie || !thread || !raw) { alert('Provide cookie, thread id and messages'); return; }
+      const messages = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      statusBox.innerText = 'Starting...';
+      try {
+        await postJSON('/start', { cookie, thread, delay, headless: false, mode, messages, maxsend });
+        statusBox.innerText = 'Started. Polling status...';
+        pollStatus();
+      } catch (e) { statusBox.innerText = 'Start failed: ' + e; }
+    });
+
+    stopBtn.addEventListener('click', async () => {
+      try {
+        await postJSON('/stop', {});
+        statusBox.innerText = 'Stop requested.';
+      } catch (e) { statusBox.innerText = 'Stop failed: ' + e; }
+    });
+
+    let pollTimer = null;
+    async function pollStatus() {
+      if (pollTimer) clearTimeout(pollTimer);
+      try {
+        const r = await fetch('/status');
+        const j = await r.json();
+        if (!j.running) {
+          if (j.progress) statusBox.innerText = 'Finished. Sent: ' + (j.progress.sentCount || 0) + (j.progress.error ? '\nError: '+j.progress.error : '');
+          else statusBox.innerText = 'Idle.';
+          return;
+        }
+        statusBox.innerText = 'Running... Sent: ' + (j.progress.sentCount || 0) + '\nLast: ' + (j.progress.lastResult || '') + '\nLogs:\n' + (j.progress.logLines||[]).slice(-6).join('\n');
+      } catch (e) { statusBox.innerText = 'Status error: ' + e; }
+      pollTimer = setTimeout(pollStatus, 2000);
+    }
+  </script>
 </body>
 </html>
