@@ -1,179 +1,45 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>FB Messenger Bot Controller</title>
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Messenger Bot</title>
 <style>
-body {
-  background: #111829;
-  color: #39ff14;
-  font-family: 'Share Tech Mono', monospace;
-  margin: 0; padding: 0; min-height: 100vh;
-  letter-spacing: 1px;
-}
-#header {
-  font-size: 2.1em;
-  text-align: center;
-  margin-top: 28px;
-  margin-bottom: 18px;
-  text-shadow: 0 0 9px #39ff14, 0 0 2px #0ff;
-  font-weight: bold;
-}
-form, .box {
-  margin: 18px auto;
-  padding: 20px 18px 16px 18px;
-  background: #181c2c;
-  border-radius: 13px;
-  border: 2px solid #39ff14;
-  width: 95vw; max-width: 420px;
-  box-shadow: 0 0 8px #39ff1490;
-}
-label { font-size: 1em; display: block; margin: 8px 0 2px 0;}
-textarea, input[type=text], input[type=number] {
-  width: 98%; padding: 13px;
-  margin: 0 0 12px 0;
-  background: #222b3c;
-  border: 1px solid #0ff4;
-  color: #63ff91;
-  font-size: 16px;
-  border-radius: 5px;
-  outline: none;
-}
-input::placeholder, textarea::placeholder { color: #9fffbe }
-button {
-  background-color: #39ff14;
-  border: none;
-  padding: 16px 32px;
-  margin: 11px 8px;
-  font-size: 1.13em;
-  color: #181c2c;
-  font-weight: bold;
-  border-radius: 7px;
-  cursor: pointer;
-  box-shadow: 0 0 7px #39ff14;
-  transition: background 0.2s;
-}
-button.start { background: #39ff14; color: #181c2c; }
-button.stop { background: #f53a3a; color: #fff; }
-button:active { filter: brightness(0.90);}
-#log {
-  background: #181c2c;
-  border: 2px solid #14ffd2;
-  width: 99%; min-height: 260px; height: 29vh; max-height: 320px;
-  overflow-y: auto;
-  padding: 15px 11px;
-  font-size: 1.07em;
-  border-radius: 8px;
-  white-space: pre-wrap;
-  margin-top: 22px;
-  color: #c7ffe1;
-  box-shadow: 0 0 7px #24ffeb33;
-}
-.log-system    { color: #baf6ff; }
-.log-success   { color: #39ffb8; font-weight: bold; }
-.log-status    { color: #bef278; }
-.log-error     { color: #ff3b3b; font-weight: bold; background: #23181b; border-radius: 7px; padding: 4px 8px; }
-.log-selector  { color: #7affff; }
-.log-auth      { color: #ffe066; }
-#statusRow {
-  margin: 8px 0 6px 0;
-  font-size: 1.1em;
-}
-#liveStatus {
-  padding: 4px 18px;
-  border-radius: 12px;
-  font-weight: bold;
-  margin-left: 10px;
-}
-.active { background: #39ff14; color: #0c3; }
-.stopped { background: #ff1a48; color: #fff; }
-label { font-size: 1em; margin-left: 2px;}
+body{background:#181c2c;font-family:sans-serif;color:#39ff14;padding:15px;}
+.box{background:#212844;border:2px solid #39ff14;padding:18px 16px;border-radius:11px;max-width:430px;margin:15px auto;}
+#log{background:#161b2c;border:2px solid #39ff1490;height:210px;overflow-y:auto;margin-top:17px;padding:9px 6px;border-radius:9px;}
+.log-system{color:#23ec9a}.log-error{color:#ff6b54}.log-success{color:#51eaff}
 </style>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div id="header">FB Messenger Bot Controller</div>
-  <div class="box">
-    <form id="mainForm" onsubmit="return false">
-      <label>Cookie String:</label>
-      <textarea id="cookieString" placeholder="Paste your Facebook cookie string"></textarea>
-      <label>Thread ID:</label>
-      <input type="text" id="threadId" placeholder="Enter Facebook thread ID"/>
-      <label>Delay (seconds):</label>
-      <input type="number" id="delay" value="5" min="0" placeholder="Delay in seconds"/>
-      <label>Message file (.txt):</label>
-      <input type="file" id="msgFile" accept=".txt"/>
-      <div>
-        <button type="button" class="start" id="startBtn">Start Sending</button>
-        <button type="button" class="stop" id="stopBtn">Stop</button>
-      </div>
-      <div id="statusRow">
-        Status:
-        <span id="liveStatus" class="stopped">Stopped</span>
-        &nbsp;|&nbsp;
-        <span>Messages Sent:</span>
-        <span id="sentCount">0</span>
-      </div>
-      <div id="log"></div>
-    </form>
-  </div>
+<div class="box">
+  <b>MSG Thread Id:</b> <input id="threadId"><br>
+  <b>Cookies:</b> <textarea id="cookies"></textarea><br>
+  <b>Delay:</b> <input id="delay" value="6" size="3"><br>
+  <b>Text File:</b> <input type="file" id="msgFile"><br>
+  <button id="start">Start</button>
+  <div id="log"></div>
+</div>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <script>
 const socket = io();
-let messages = [];
-const cookieStringInput = document.getElementById('cookieString');
-const threadIdInput = document.getElementById('threadId');
-const delayInput = document.getElementById('delay');
-const msgFileInput = document.getElementById('msgFile');
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const sentCountSpan = document.getElementById('sentCount');
-const liveStatus = document.getElementById('liveStatus');
 const logDiv = document.getElementById('log');
-let count = 0; let sending = false;
-msgFileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    messages = reader.result.split(/
+function log(msg,type){ logDiv.innerHTML += `<div class='log-${type||"system"}'>${msg}</div>`; logDiv.scrollTop=logDiv.scrollHeight;}
+let messages=[];
+document.getElementById('msgFile').addEventListener('change',e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload=()=>{messages=r.result.split(/
 ?
-/).filter(line => line.trim() !== '');
-    appendLog('Loaded '+messages.length+' messages from file.','system');
-  };
-  reader.readAsText(file);
+/).filter(x=>x); log('Loaded '+messages.length+' messages.','system');};
+  r.readAsText(f);
 });
-function appendLog(msg,type) {
-  const time = new Date().toLocaleTimeString();
-  let css = 'log-system';
-  if (type) css = 'log-'+type;
-  logDiv.innerHTML += `<div class="${css}">[${time}] ${msg}</div>`;
-  logDiv.scrollTop = logDiv.scrollHeight;
-}
-startBtn.onclick = () => {
-  const cookieString = cookieStringInput.value.trim();
-  const threadId = threadIdInput.value.trim();
-  const delaySeconds = parseInt(delayInput.value);
-  if (!cookieString) return alert('Enter cookie string');
-  if (!threadId) return alert('Enter thread ID');
-  if (!delaySeconds || delaySeconds < 0) return alert('Enter valid delay');
-  if (messages.length === 0) return alert('Upload message file (.txt)');
-  count = 0;
-  socket.emit('start', { cookieString, threadId, delaySeconds, messages });
+socket.on('log',d=>log(d.msg,d.type));
+document.getElementById('start').onclick=()=>{
+  socket.emit('start',{
+    threadId:document.getElementById('threadId').value,
+    cookieString:document.getElementById('cookies').value,
+    delaySeconds:parseInt(document.getElementById('delay').value)||6,
+    messages
+  });
 };
-stopBtn.onclick = () => socket.emit('stop');
-socket.on('log', ({ type, msg }) => appendLog(msg, type));
-socket.on('count', (n) => {
-  count = n;
-  sentCountSpan.textContent = count;
-});
-socket.on('status_box', ({ active, sending: s, count: n }) => {
-  sending = s;
-  liveStatus.textContent = s ? "Active":active?"Done":"Stopped";
-  liveStatus.className = s ? "active":active?"active":"stopped";
-  sentCountSpan.textContent = n || 0;
-});
 </script>
 </body>
 </html>
