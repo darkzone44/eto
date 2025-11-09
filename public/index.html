@@ -1,33 +1,25 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Facebook E2EE Sender</title>
-  <style>
-    body { font-family: Arial; background: #000; color: #0f0; text-align: center; padding-top: 40px; }
-    input, textarea { width: 300px; margin: 5px; padding: 7px; border-radius: 4px; border: none; outline: none; }
-    button { padding: 10px 20px; background: #0f0; border: none; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <h1>FB Encrypted Auto Sender</h1>
-  <input id="cookie" placeholder="Paste Cookies Here"><br>
-  <input id="thread" placeholder="Thread ID"><br>
-  <input id="delay" placeholder="Delay (ms)"><br>
-  <textarea id="msg" placeholder="Message"></textarea><br>
-  <button onclick="start()">START</button>
+<body style="background:#000;color:#0f0;text-align:center;padding-top:40px;font-family:Arial;">
+<h2>FB E2EE Auto Sender</h2>
+<input id="cookie" placeholder="Paste Cookies" style="width:300px;"><br><br>
+<input id="thread" placeholder="Thread ID" style="width:300px;"><br><br>
+<input id="message" placeholder="Message" style="width:300px;"><br><br>
+<input id="delay" placeholder="Delay (ms)" style="width:300px;"><br><br>
+<button onclick="start()" style="padding:10px 20px;">START</button>
 
 <script>
-function start() {
-  fetch("/start", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      cookie: document.getElementById("cookie").value,
-      threadId: document.getElementById("thread").value,
-      message: document.getElementById("msg").value,
-      delay: document.getElementById("delay").value
-    })
-  }).then(r=>r.json()).then(alert);
+function start(){
+ fetch("/start",{
+  method:"POST",
+  headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({
+   cookie:document.getElementById("cookie").value,
+   threadId:document.getElementById("thread").value,
+   message:document.getElementById("message").value,
+   delay:document.getElementById("delay").value
+  })
+ }).then(r=>r.json()).then(d=>alert(JSON.stringify(d)));
 }
 </script>
 </body>
