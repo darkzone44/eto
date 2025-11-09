@@ -1,48 +1,19 @@
-/**
- * fb-messenger-automation (enhanced)
- * - Real message sending with retries and DOM-confirmation
- * - Usage: node index.js --cookie "..." --thread 61564176744081 --messages messages.txt --delay 3000 --mode once
- *
- * Modes:
- *  - mode=once        -> send each message from file once, then exit
- *  - mode=loop        -> loop messages indefinitely until stopped
- *
- * Controls:
- *  - Type 's' + ENTER to stop during run.
- *
- * WARNING: Use only with your own account. Avoid spamming.
- */
-
+// server.js
+const express = require('express');
+const bodyParser = require('body-parser');
+const path = require('path');
 const fs = require('fs');
 const puppeteer = require('puppeteer');
-const minimist = require('minimist');
-const readline = require('readline');
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-const args = minimist(process.argv.slice(2), {
-  string: ['cookie', 'thread', 'messages', 'delay', 'headless', 'mode', 'logfile', 'maxsend'],
-  alias: { c: 'cookie', t: 'thread', m: 'messages', d: 'delay', h: 'headless' },
-  default: { delay: '3000', headless: 'false', messages: 'messages.txt', mode: 'once', logfile: 'send.log', maxsend: '0' }
-});
+app.use(bodyParser.json({ limit: '5mb' }));
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-if (!args.cookie) { console.error('Error: --cookie is required'); process.exit(1); }
-if (!args.thread) { console.error('Error: --thread is required'); process.exit(1); }
+let currentTask = null; // holds controller for running task
 
-const COOKIE_STRING = args.cookie;
-const THREAD_ID = args.thread;
-const MESSAGES_FILE = args.messages;
-const DELAY_MS = Math.max(500, parseInt(args.delay || '3000', 10));
-const HEADLESS = (args.headless === 'true');
-const MODE = args.mode === 'loop' ? 'loop' : 'once';
-const LOGFILE = args.logfile;
-const MAX_SEND = parseInt(args.maxsend || '0', 10); // 0 = unlimited (subject to mode)
-
-function log(...parts) {
-  const line = `[${new Date().toISOString()}] ` + parts.join(' ');
-  console.log(line);
-  try { fs.appendFileSync(LOGFILE, line + '\n'); } catch (e) {}
-}
-
-function parseCookieString(cookieStr, domain = '.facebook.com') {
+function parseCookieString(cookieStr) {
   return cookieStr.split(';').map(pair => {
     const p = pair.trim();
     if (!p) return null;
@@ -51,239 +22,138 @@ function parseCookieString(cookieStr, domain = '.facebook.com') {
     const name = p.slice(0, eq).trim();
     const value = p.slice(eq + 1).trim();
     if (!name) return null;
-    return { name, value, domain, path: '/', httpOnly: false, secure: true };
+    return { name, value, domain: '.facebook.com', path: '/', httpOnly: false, secure: true };
   }).filter(Boolean);
 }
 
-async function waitForInputSelectors(page) {
-  const candidates = [
+async function waitForInputSelector(page) {
+  const selectors = [
     'div[contenteditable="true"][role="combobox"]',
     'div[role="textbox"][contenteditable="true"]',
     'div[contenteditable="true"]',
     'textarea'
   ];
-  for (const sel of candidates) {
-    try {
-      await page.waitForSelector(sel, { timeout: 4000 });
-      const el = await page.$(sel);
-      if (el) return sel;
-    } catch (e) {}
+  for (const s of selectors) {
+    try { await page.waitForSelector(s, { timeout: 3000 }); return s; } catch(e) {}
   }
   return null;
 }
 
-async function sendViaContentEditable(page, selector, text) {
-  // Try to set contenteditable text and press Enter
-  return page.evaluate(async (sel, msg) => {
-    const el = document.querySelector(sel);
-    if (!el) return { ok: false, err: 'noel' };
-    el.focus();
-    // Clear
-    el.innerHTML = '';
-    // Insert text node
-    const tn = document.createTextNode(msg);
-    el.appendChild(tn);
-    // Dispatch input event
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    // Press Enter
-    const e = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter' });
-    el.dispatchEvent(e);
-    const e2 = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter' });
-    el.dispatchEvent(e2);
-    return { ok: true };
-  }, selector, text);
-}
-
-async function sendViaTextarea(page, selector, text) {
-  const el = await page.$(selector);
-  if (!el) throw new Error('textarea not found');
-  await el.click({ clickCount: 3 });
-  await page.evaluate((sel, msg) => {
-    const e = document.querySelector(sel);
-    e.value = msg;
-    e.dispatchEvent(new Event('input', { bubbles: true }));
-  }, selector, text);
-  // Try press Enter
-  await page.keyboard.press('Enter');
-}
-
-async function clickSendButtonIfAny(page) {
-  // Try known send button selectors
-  const btnSelectors = [
-    'a[aria-label="Send"]',
-    'button[aria-label="Send"]',
-    'div[aria-label="Press Enter to send"]', // fallback
-    'div[role="button"][aria-label*="Send"]'
-  ];
-  for (const bsel of btnSelectors) {
-    const b = await page.$(bsel);
-    if (b) { try { await b.click(); return true; } catch (e){} }
-  }
-  return false;
-}
-
 async function lastMessageTextInThread(page) {
-  // Find last message text bubble from "you"
   return page.evaluate(() => {
-    // messenger.com structure: messages appear as divs; find last outgoing bubble
-    const out = Array.from(document.querySelectorAll('[data-sigil="message-text"], [data-testid="message-text"], div[dir="auto"]')).slice(-6);
-    if (!out || out.length === 0) {
-      const all = Array.from(document.querySelectorAll('div[role="row"] span, div[role="row"] div'));
-      if (all.length === 0) return null;
-      return all[all.length-1].innerText || null;
-    }
-    // take last candidate with text
-    for (let i = out.length-1; i>=0; i--) {
-      const t = out[i].innerText;
+    const candidates = Array.from(document.querySelectorAll('div[dir="auto"], div[role="row"] span')).slice(-10);
+    for (let i = candidates.length - 1; i >= 0; i--) {
+      const t = candidates[i].innerText;
       if (t && t.trim()) return t.trim();
     }
     return null;
-  });
+  }).catch(() => null);
 }
 
-async function sendOneMessage(page, inputSelector, text, attempt = 1) {
+async function sendOneMessage(page, selector, text) {
   try {
-    // prefer contenteditable method if selector is contenteditable
-    const isContentEditable = await page.evaluate((sel) => {
-      const el = document.querySelector(sel);
-      return !!(el && el.isContentEditable);
-    }, inputSelector).catch(()=>false);
-
-    if (isContentEditable) {
-      await sendViaContentEditable(page, inputSelector, text);
+    const isCE = await page.evaluate((sel) => { const e = document.querySelector(sel); return !!(e && e.isContentEditable); }, selector);
+    if (isCE) {
+      await page.evaluate((sel, msg) => {
+        const e = document.querySelector(sel);
+        e.focus(); e.innerHTML = '';
+        e.appendChild(document.createTextNode(msg));
+        e.dispatchEvent(new Event('input', { bubbles: true }));
+      }, selector, text);
+      await page.keyboard.press('Enter');
     } else {
-      // textarea / input fallback
-      await sendViaTextarea(page, inputSelector, text);
-      // maybe click send button
-      await clickSendButtonIfAny(page);
+      await page.evaluate((sel, msg) => { const e = document.querySelector(sel); if(e) { e.value = msg; e.dispatchEvent(new Event('input', { bubbles: true })); } }, selector, text);
+      await page.keyboard.press('Enter');
     }
 
-    // Wait short while then confirm last message matches
-    const confirmWaitMs = 4000;
+    // confirm
     const start = Date.now();
-    while (Date.now() - start < confirmWaitMs) {
+    while (Date.now() - start < 5000) {
       const last = await lastMessageTextInThread(page);
-      if (last && last.includes(text.substring(0, Math.min(40, text.length)))) {
-        return { ok: true };
-      }
-      await new Promise(r => setTimeout(r, 500));
+      if (last && last.includes(text.substring(0, Math.min(40, text.length)))) return true;
+      await new Promise(r => setTimeout(r, 400));
     }
-
-    // If not confirmed, try clicking send button as backup
-    await clickSendButtonIfAny(page);
-
-    // final check
-    const final = await lastMessageTextInThread(page);
-    if (final && final.includes(text.substring(0, Math.min(40, text.length)))) {
-      return { ok: true };
-    }
-
-    // if still not sent and attempts left, retry
-    if (attempt < 3) {
-      log('Retrying send attempt', attempt+1);
-      await new Promise(r => setTimeout(r, 1000 * attempt));
-      return await sendOneMessage(page, inputSelector, text, attempt+1);
-    }
-
-    return { ok: false, err: 'not_confirmed' };
+    return false;
   } catch (e) {
-    if (attempt < 3) {
-      await new Promise(r => setTimeout(r, 800 * attempt));
-      return await sendOneMessage(page, inputSelector, text, attempt+1);
-    }
-    return { ok: false, err: e.message || String(e) };
+    return false;
   }
 }
 
-async function main() {
-  const cookies = parseCookieString(COOKIE_STRING);
-  log(`Parsed ${cookies.length} cookies. Launching browser headless=${HEADLESS}`);
-  const browser = await puppeteer.launch({
-    headless: HEADLESS,
-    args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'],
-    defaultViewport: null
-  });
+async function runSendingTask(params, progress) {
+  // params: { cookie, thread, messages[], delay, headless, mode, maxsend }
+  const cookies = parseCookieString(params.cookie || '');
+  const browser = await puppeteer.launch({ headless: !!params.headless, args: ['--no-sandbox','--disable-setuid-sandbox'] });
   const page = await browser.newPage();
-
-  // go to facebook to set cookies
-  try { await page.goto('https://www.facebook.com', { waitUntil: 'domcontentloaded', timeout: 30000 }); } catch(e){}
-
-  await page.setCookie(...cookies.map(c => ({...c, domain: '.facebook.com'})));
-  const messengerUrl = `https://www.messenger.com/t/${THREAD_ID}`;
-  log('Navigating to', messengerUrl);
-  await page.goto(messengerUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-
-  // Quick login check: presence of contenteditable
-  let inputSelector = await waitForInputSelectors(page);
-  if (!inputSelector) {
-    log('Input selector not found. Taking screenshot to messenger_page.png and exiting.');
-    await page.screenshot({ path: 'messenger_page.png', fullPage: true });
-    await browser.close();
-    process.exit(1);
-  }
-  log('Found input selector:', inputSelector);
-
-  // Load messages
-  let messages = [];
   try {
-    messages = fs.readFileSync(MESSAGES_FILE, 'utf8').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    if (messages.length === 0) throw new Error('empty');
-  } catch (e) {
-    log('Failed reading messages file:', MESSAGES_FILE);
+    await page.goto('https://www.facebook.com', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
+    await page.setCookie(...cookies);
+    const url = `https://www.messenger.com/t/${params.thread}`;
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+
+    const selector = await waitForInputSelector(page);
+    if (!selector) throw new Error('Message input not found');
+
+    let sent = 0;
+    let idx = 0;
+    const messages = params.messages || [];
+    const delay = Math.max(300, parseInt(params.delay || 3000, 10));
+    const maxsend = parseInt(params.maxsend || 0, 10);
+
+    while (!progress.stopped) {
+      if (maxsend > 0 && sent >= maxsend) break;
+      if (messages.length === 0) break;
+
+      const text = messages[idx % messages.length];
+      progress.log(`Sending: ${text.substring(0,60)}...`);
+      const ok = await sendOneMessage(page, selector, text);
+      progress.lastResult = ok ? 'sent' : 'failed';
+      progress.sentCount = ++sent;
+
+      // wait with stop checks
+      const step = 500; let waited = 0;
+      while (!progress.stopped && waited < delay) { await new Promise(r=>setTimeout(r, step)); waited += step; }
+
+      idx++;
+      if (params.mode !== 'loop' && idx >= messages.length) break;
+    }
     await browser.close();
-    process.exit(1);
+    progress.done = true;
+    return progress;
+  } catch (e) {
+    try { await browser.close(); } catch(_) {}
+    progress.error = String(e);
+    progress.done = true;
+    return progress;
   }
-  log(`Loaded ${messages.length} messages. Mode=${MODE}. Delay=${DELAY_MS}ms`);
-
-  // readline control
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  let stopped = false;
-  rl.on('line', (ln) => { if (ln.trim().toLowerCase() === 's') { stopped = true; log('Stop requested'); } });
-
-  log("Type 's' + ENTER anytime to stop. Press ENTER to begin.");
-  await new Promise(res => rl.question('Press ENTER to start: ', () => res()));
-
-  let sentCount = 0;
-  let idx = 0;
-  while (!stopped) {
-    if (MAX_SEND > 0 && sentCount >= MAX_SEND) {
-      log('Reached max send count', MAX_SEND);
-      break;
-    }
-
-    const text = messages[idx % messages.length];
-    log(`Sending #${sentCount+1} -> "${text.substring(0,80)}"${text.length>80? '...':''}`);
-    const res = await sendOneMessage(page, inputSelector, text);
-    if (res.ok) {
-      sentCount++;
-      log('Send confirmed. Total sent:', sentCount);
-    } else {
-      log('Send failed:', res.err);
-      // decide: continue or exit; we'll continue but after capturing screenshot
-      try { await page.screenshot({ path: `fail_send_${Date.now()}.png`, fullPage: true }); } catch(e){}
-    }
-
-    // advance
-    idx++;
-    if (MODE === 'once' && idx >= messages.length) {
-      log('Mode once complete. Exiting.');
-      break;
-    }
-
-    // wait with stop checks
-    const step = 500;
-    let waited = 0;
-    while (!stopped && waited < DELAY_MS) {
-      await new Promise(r=>setTimeout(r, step));
-      waited += step;
-    }
-  }
-
-  log('Finished run. Closing browser.');
-  rl.close();
-  await browser.close();
-  process.exit(0);
 }
 
-main().catch(e => { console.error('Fatal:', e); process.exit(1); });
-      
+app.post('/start', async (req, res) => {
+  if (currentTask && !currentTask.progress.done) {
+    return res.status(409).json({ error: 'A task is already running' });
+  }
+  const { cookie, thread, delay, headless, mode, messages, maxsend } = req.body;
+  if (!cookie || !thread || !messages) return res.status(400).json({ error: 'Missing cookie/thread/messages' });
+
+  const progress = { stopped: false, sentCount: 0, lastResult: null, logLines: [], done: false };
+  progress.log = (txt) => { progress.logLines.push(`[${new Date().toISOString()}] ${txt}`); console.log(txt); };
+
+  currentTask = { params: { cookie, thread, delay, headless, mode, messages, maxsend }, progress };
+  // run async
+  runSendingTask(currentTask.params, currentTask.progress).catch(e => { currentTask.progress.error = String(e); currentTask.progress.done = true; });
+
+  res.json({ ok: true });
+});
+
+app.post('/stop', (req, res) => {
+  if (!currentTask) return res.json({ ok: false, msg: 'No task' });
+  currentTask.progress.stopped = true;
+  res.json({ ok: true });
+});
+
+app.get('/status', (req, res) => {
+  if (!currentTask) return res.json({ running: false });
+  res.json({ running: !currentTask.progress.done && !currentTask.progress.stopped, progress: currentTask.progress });
+});
+
+app.listen(PORT, () => console.log('Server listening on', PORT));
+                               
