@@ -1,4 +1,7 @@
 {
+  "name": "fb-messenger-render-ready",
+  "version": "1.0.0",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "postinstall": "npx puppeteer install --product=chrome --with-deps"
