@@ -1,117 +1,33 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FB Messenger Automation</title>
+  <title>Facebook E2EE Sender</title>
   <style>
-    body{margin:0;background:#050514;color:#eaf6ff;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}
-    .panel{width:920px;max-width:96%;display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:18px}
-    .box{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);padding:12px;border-radius:10px}
-    textarea,input,select{width:100%;padding:8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;margin-top:6px}
-    button{padding:10px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
-    .start{background:linear-gradient(90deg,#00ffa3,#00d4ff);color:#001}
-    .stop{background:linear-gradient(90deg,#ff6b6b,#ff9a9e);color:#111}
-    .status{white-space:pre-wrap;background:rgba(0,0,0,0.25);padding:10px;border-radius:6px;margin-top:8px;min-height:100px}
-    .bm{display:inline-block;padding:8px 10px;border-radius:6px;background:#081827;color:#7ef;cursor:pointer;margin-top:8px;text-decoration:none}
+    body { font-family: Arial; background: #000; color: #0f0; text-align: center; padding-top: 40px; }
+    input, textarea { width: 300px; margin: 5px; padding: 7px; border-radius: 4px; border: none; outline: none; }
+    button { padding: 10px 20px; background: #0f0; border: none; cursor: pointer; }
   </style>
 </head>
 <body>
-  <div class="panel">
-    <div class="box">
-      <h3>Facebook Cookie</h3>
-      <textarea id="cookie" rows="4" placeholder="Paste full cookie (datr=...; fr=...; sb=...;)"></textarea>
-      <div style="font-size:13px;margin-top:8px;color:#bcd">Cookie helper: create a bookmark from the bookmarklet below, open facebook.com then click the bookmark to copy cookie to clipboard.</div>
-      <div><a id="copyBookmark" class="bm">Copy Cookie Bookmarklet</a></div>
-
-      <h3 style="margin-top:12px">Thread ID</h3>
-      <input id="thread" placeholder="61564176744081">
-
-      <h3 style="margin-top:8px">Delay (ms)</h3>
-      <input id="delay" placeholder="3000" value="3000">
-
-      <h3 style="margin-top:8px">Mode</h3>
-      <select id="mode"><option value="once">Send each message once</option><option value="loop">Loop messages</option></select>
-
-      <h3 style="margin-top:8px">Max Send (0 = unlimited)</h3>
-      <input id="maxsend" placeholder="0">
-    </div>
-
-    <div class="box">
-      <h3>Messages (one per line)</h3>
-      <textarea id="messages" rows="12" placeholder="Hello\nThis is message 2"></textarea>
-
-      <div style="margin-top:10px">
-        <button id="start" class="start">Start</button>
-        <button id="stop" class="stop">Stop</button>
-      </div>
-
-      <div id="status" class="status">Idle. Fill cookie, thread id, messages and press Start.</div>
-    </div>
-  </div>
+  <h1>FB Encrypted Auto Sender</h1>
+  <input id="cookie" placeholder="Paste Cookies Here"><br>
+  <input id="thread" placeholder="Thread ID"><br>
+  <input id="delay" placeholder="Delay (ms)"><br>
+  <textarea id="msg" placeholder="Message"></textarea><br>
+  <button onclick="start()">START</button>
 
 <script>
-document.getElementById('copyBookmark').addEventListener('click', async () => {
-  // bookmarklet that copies document.cookie to clipboard and shows an alert
-  const code = "javascript:(()=>{try{navigator.clipboard.writeText(document.cookie).then(()=>alert('Cookie copied to clipboard'));}catch(e){prompt('Copy cookie manually',document.cookie);}})()";
-  try {
-    await navigator.clipboard.writeText(code);
-    alert('Bookmarklet code copied to clipboard. Create a bookmark and paste it into the URL field. Open facebook.com and click the bookmark to copy cookie.');
-  } catch(e) {
-    prompt('Copy this bookmarklet code and make a bookmark with it, then run it on facebook.com:', code);
-  }
-});
-
-async function safePost(path, body){
-  try {
-    const res = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    const txt = await res.text();
-    try { return JSON.parse(txt); } catch(e) { return { error: 'invalid-json', raw: txt }; }
-  } catch (e) { return { error: 'fetch-failed', msg: String(e) }; }
-}
-
-document.getElementById('start').addEventListener('click', async () => {
-  const cookie = document.getElementById('cookie').value.trim();
-  const thread = document.getElementById('thread').value.trim();
-  const delay = document.getElementById('delay').value.trim();
-  const mode = document.getElementById('mode').value;
-  const maxsend = document.getElementById('maxsend').value.trim() || '0';
-  const messages = document.getElementById('messages').value.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);
-  const status = document.getElementById('status');
-  if (!cookie || !thread || !messages.length) { alert('Provide cookie, thread id and messages'); return; }
-  status.innerText = 'Starting...';
-  const r = await safePost('/start', { cookie, thread, delay, headless:false, mode, messages, maxsend });
-  if (r && r.ok) {
-    pollStatus();
-  } else {
-    status.innerText = 'Start failed: ' + JSON.stringify(r);
-  }
-});
-
-document.getElementById('stop').addEventListener('click', async () => {
-  const status = document.getElementById('status');
-  const r = await safePost('/stop', {});
-  status.innerText = (r && r.ok) ? 'Stop requested' : 'Stop failed: ' + JSON.stringify(r);
-});
-
-let pollTimer = null;
-async function pollStatus(){
-  if (pollTimer) clearTimeout(pollTimer);
-  try {
-    const res = await fetch('/status');
-    const txt = await res.text();
-    let j;
-    try { j = JSON.parse(txt); } catch(e) { document.getElementById('status').innerText = 'Status invalid JSON:\\n' + txt; pollTimer = setTimeout(pollStatus,2000); return; }
-    if (!j.running) {
-      document.getElementById('status').innerText = j.progress ? ('Finished. Sent: '+(j.progress.sentCount||0)+(j.progress.error? '\\nError: '+j.progress.error:'')) : 'Idle.';
-      return;
-    }
-    const p = j.progress;
-    document.getElementById('status').innerText = 'Running...\\nSent: ' + (p.sentCount||0) + '\\nLast: ' + (p.lastResult||'') + '\\nLogs:\\n' + (p.logLines||[]).slice(-6).join('\\n');
-  } catch (e) {
-    document.getElementById('status').innerText = 'Status fetch error: ' + e;
-  }
-  pollTimer = setTimeout(pollStatus, 2000);
+function start() {
+  fetch("/start", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      cookie: document.getElementById("cookie").value,
+      threadId: document.getElementById("thread").value,
+      message: document.getElementById("msg").value,
+      delay: document.getElementById("delay").value
+    })
+  }).then(r=>r.json()).then(alert);
 }
 </script>
 </body>
