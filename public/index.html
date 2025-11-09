@@ -1,37 +1,71 @@
-
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>FB Messenger Auto Sender</title>
-<style>
-body { background: #0a0a0f; font-family: Arial; color: #fff; display:flex; justify-content:center; align-items:center; height:100vh; }
-.container { padding:20px; border-radius:12px; background:#111; width:350px; box-shadow:0 0 20px #0ff; }
-input, textarea { width:100%; margin:8px 0; padding:8px; border:none; border-radius:6px; background:#222; color:#0ff; }
-button { width:48%; padding:10px; border:none; border-radius:8px; margin-top:10px; cursor:pointer; background:#0ff; color:#000; font-weight:bold; }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FB Messenger Automation — UI</title>
+  <style>
+    body{margin:0;height:100vh;background:linear-gradient(180deg,#02020a 0%, #081026 100%);font-family:Arial, sans-serif;color:#e6f0ff;display:flex;align-items:center;justify-content:center}
+    .wrap{width:920px;max-width:96%;display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px}
+    .card{padding:14px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+    textarea,input,select{width:100%;padding:8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.05);color:inherit;margin-top:6px}
+    button{padding:10px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:700;margin-right:8px}
+    .start{background:linear-gradient(90deg,#00ffa3,#00d4ff);color:#001}
+    .stop{background:linear-gradient(90deg,#ff6b6b,#ff9a9e);color:#111}
+    .status{white-space:pre-wrap;background:rgba(0,0,0,0.25);padding:10px;border-radius:6px;margin-top:8px;min-height:80px}
+  </style>
 </head>
 <body>
-<div class="container">
-<h2>FB Messenger Auto Sender</h2>
-<input id="cookie" placeholder="Paste Facebook Cookie">
-<input id="thread" placeholder="Thread ID (e.g. 61564...)">
-<input id="delay" placeholder="Delay ms (e.g. 2000)" value="2000">
-<textarea id="messages" rows="5" placeholder="One message per line"></textarea>
-<div>
-<button onclick="start()">Start</button>
-<button onclick="stop()">Stop</button>
-</div>
-</div>
+  <div class="wrap">
+    <div class="card">
+      <h3>Facebook Cookie</h3>
+      <textarea id="cookie" rows="4" placeholder="datr=...; fr=...; sb=...;"></textarea>
+      <h3>Thread ID</h3>
+      <input id="thread" placeholder="61564176744081" />
+      <h3>Delay (ms)</h3>
+      <input id="delay" placeholder="3000" value="3000" />
+      <h3>Mode</h3>
+      <select id="mode"><option value="once">Send each message once</option><option value="loop">Loop messages</option></select>
+      <h3>Max Send (0=unlimited)</h3>
+      <input id="maxsend" placeholder="0" />
+    </div>
+
+    <div class="card">
+      <h3>Messages (one per line)</h3>
+      <textarea id="messages" rows="12" placeholder="Hello\nThis is message 2"></textarea>
+      <div style="margin-top:8px">
+        <button class="start" id="start">Start</button><button class="stop" id="stop">Stop</button>
+      </div>
+      <div class="status" id="status">Idle. Fill cookie, thread id, messages and press Start.</div>
+    </div>
+  </div>
+
 <script>
-async function start(){
-  const cookie=document.getElementById('cookie').value;
-  const thread=document.getElementById('thread').value;
-  const delay=document.getElementById('delay').value;
-  const msgs=document.getElementById('messages').value.split('\n').filter(x=>x.trim());
-  await fetch('/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cookie,threadId:thread,delay,messages:msgs})});
+async function post(path, body){ const res = await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return res.json(); }
+document.getElementById('start').addEventListener('click', async ()=>{
+  const cookie = document.getElementById('cookie').value.trim();
+  const thread = document.getElementById('thread').value.trim();
+  const delay = document.getElementById('delay').value.trim();
+  const mode = document.getElementById('mode').value;
+  const maxsend = document.getElementById('maxsend').value.trim() || '0';
+  const messages = document.getElementById('messages').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if(!cookie||!thread||!messages.length){ alert('Provide cookie, thread id and messages'); return; }
+  document.getElementById('status').innerText = 'Starting...';
+  await post('/start',{ cookie, thread, delay, headless:false, mode, messages, maxsend });
+  pollStatus();
+});
+document.getElementById('stop').addEventListener('click', async ()=>{ await post('/stop',{}); document.getElementById('status').innerText='Stop requested.'; });
+
+let pollTimer = null;
+async function pollStatus(){
+  if(pollTimer) clearTimeout(pollTimer);
+  try{
+    const res = await fetch('/status'); const j = await res.json();
+    if(!j.running){ document.getElementById('status').innerText = j.progress ? ('Finished. Sent: '+(j.progress.sentCount||0)+(j.progress.error? '\nError: '+j.progress.error:'')) : 'Idle.'; return; }
+    document.getElementById('status').innerText = 'Running...\nSent: '+(j.progress.sentCount||0)+'\nLast: '+(j.progress.lastResult||'')+'\nLogs:\n'+(j.progress.logLines||[]).slice(-6).join('\n');
+  }catch(e){ document.getElementById('status').innerText = 'Status error: '+e; }
+  pollTimer = setTimeout(pollStatus,2000);
 }
-async function stop(){ await fetch('/stop',{method:'POST'}); }
 </script>
 </body>
 </html>
