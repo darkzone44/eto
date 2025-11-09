@@ -1,195 +1,55 @@
-// server.js
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const puppeteer = require('puppeteer');
+import express from "express";
+import chromium from "chromium";
+import puppeteer from "puppeteer-core";
 
 const app = express();
-app.use(cors());
-app.use(bodyParser.json({ limit: '6mb' }));
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.static("public"));
 
-const PUBLIC_DIR = path.join(__dirname, 'public');
-app.use(express.static(PUBLIC_DIR));
-app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+app.post("/start", async (req, res) => {
+  const { cookie, threadId, message, delay } = req.body;
 
-let current = { running: false, progress: null };
-
-function parseCookieString(cookieStr) {
-  if (!cookieStr) return [];
-  return cookieStr.split(';').map(pair => {
-    const p = pair.trim();
-    if (!p) return null;
-    const idx = p.indexOf('=');
-    if (idx === -1) return null;
-    return {
-      name: p.slice(0, idx).trim(),
-      value: p.slice(idx + 1).trim(),
-      domain: '.facebook.com',
-      path: '/',
-      httpOnly: false,
-      secure: true
-    };
-  }).filter(Boolean);
-}
-
-async function waitForInputSelector(page) {
-  const selectors = [
-    'div[contenteditable="true"][role="combobox"]',
-    'div[role="textbox"][contenteditable="true"]',
-    'div[contenteditable="true"]',
-    'textarea'
-  ];
-  for (const s of selectors) {
-    try { await page.waitForSelector(s, { timeout: 4000 }); return s; } catch (e) {}
+  if (!cookie || !threadId || !message || !delay) {
+    return res.json({ error: "Missing required fields" });
   }
-  return null;
-}
 
-// find last visible text in thread
-async function lastMessageTextInThread(page) {
-  return page.evaluate(() => {
-    const nodes = Array.from(document.querySelectorAll('div[dir="auto"], span, p')).slice(-40);
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const t = nodes[i].innerText;
-      if (t && t.trim()) return t.trim();
-    }
-    return null;
-  }).catch(() => null);
-}
-
-async function sendOneMessage(page, selector, text) {
   try {
-    const isCE = await page.evaluate(sel => {
-      const e = document.querySelector(sel);
-      return !!(e && e.isContentEditable);
-    }, selector).catch(() => false);
+    const browser = await puppeteer.launch({
+      executablePath: chromium.path,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      headless: true
+    });
 
-    if (isCE) {
-      await page.evaluate((sel, msg) => {
-        const e = document.querySelector(sel);
-        if (!e) return;
-        e.focus();
-        e.innerHTML = '';
-        e.appendChild(document.createTextNode(msg));
-        e.dispatchEvent(new Event('input', { bubbles: true }));
-      }, selector, text);
-      await page.keyboard.press('Enter');
-    } else {
-      await page.evaluate((sel, msg) => {
-        const e = document.querySelector(sel);
-        if (!e) return;
-        e.value = msg;
-        e.dispatchEvent(new Event('input', { bubbles: true }));
-      }, selector, text);
-      await page.keyboard.press('Enter');
-    }
+    const page = await browser.newPage();
+    await page.setUserAgent(
+      "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/127 Safari/537.36"
+    );
 
-    // confirm it appeared
-    const start = Date.now();
-    while (Date.now() - start < 5000) {
-      const last = await lastMessageTextInThread(page);
-      if (last && last.includes(text.substring(0, Math.min(text.length, 40)))) return true;
-      await new Promise(r => setTimeout(r, 350));
-    }
-    return false;
-  } catch (e) {
-    console.error('sendOneMessage error', e);
-    return false;
-  }
-}
+    await page.setCookie(...cookie.split(";").map(c => {
+      let [name, value] = c.trim().split("=");
+      return { name, value, domain: ".facebook.com" };
+    }));
 
-async function runTask(params, progress) {
-  const cookies = parseCookieString(params.cookie || '');
-  // use Puppeteer's bundled chromium (postinstall ensures it's available on Render)
-  const browser = await puppeteer.launch({
-    headless: params.headless === true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-  });
-
-  const page = await browser.newPage();
-  try {
-    await page.goto('https://www.facebook.com', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
-    if (cookies.length) await page.setCookie(...cookies);
-
-    const messengerUrl = `https://www.messenger.com/t/${params.thread}`;
-    await page.goto(messengerUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-
-    const selector = await waitForInputSelector(page);
-    if (!selector) throw new Error('Message input not found — probably cookie invalid or UI changed.');
+    await page.goto(`https://www.messenger.com/t/${threadId}`, {
+      waitUntil: "networkidle2"
+    });
 
     let sent = 0;
-    let idx = 0;
-    const messages = Array.isArray(params.messages) ? params.messages : [];
-    const delay = Math.max(300, parseInt(params.delay || 3000, 10));
-    const maxsend = parseInt(params.maxsend || '0', 10);
-
-    progress.log(`Ready to send. messages=${messages.length} delay=${delay} maxsend=${maxsend}`);
-
-    while (!progress.stopped) {
-      if (maxsend > 0 && sent >= maxsend) break;
-      if (!messages.length) break;
-
-      const text = messages[idx % messages.length];
-      progress.log(`Sending #${sent+1}: ${text.substring(0,80)}`);
-      const ok = await sendOneMessage(page, selector, text);
-      progress.lastResult = ok ? 'sent' : 'failed';
-      if (!ok) progress.log('Send not confirmed (no matching last text).');
-
-      progress.sentCount = ++sent;
-
-      // wait while allowing stop
-      const step = 500;
-      let waited = 0;
-      while (!progress.stopped && waited < delay) {
-        await new Promise(r => setTimeout(r, step));
-        waited += step;
+    const interval = setInterval(async () => {
+      try {
+        await page.type('[contenteditable="true"]', message);
+        await page.keyboard.press("Enter");
+        sent++;
+        console.log(`Message Sent: ${sent}`);
+      } catch (err) {
+        console.log("Send failed:", err.message);
       }
+    }, delay);
 
-      idx++;
-      if (params.mode !== 'loop' && idx >= messages.length) break;
-    }
-
-    await browser.close();
-    progress.done = true;
-    return progress;
+    res.json({ status: "running", message: "Message sending started." });
   } catch (err) {
-    try { await browser.close(); } catch(_) {}
-    progress.error = String(err);
-    progress.done = true;
-    return progress;
+    res.json({ error: err.message });
   }
-}
-
-app.post('/start', (req, res) => {
-  if (current.running && current.progress && !current.progress.done) return res.status(409).json({ error: 'task running' });
-  const { cookie, thread, delay, headless, mode, messages, maxsend } = req.body;
-  if (!cookie || !thread || !messages) return res.status(400).json({ error: 'missing cookie/thread/messages' });
-
-  const progress = { stopped: false, sentCount: 0, lastResult: null, logLines: [], done: false };
-  progress.log = txt => { progress.logLines.push(`[${new Date().toISOString()}] ${txt}`); console.log(txt); };
-  current = { running: true, progress };
-
-  runTask({ cookie, thread, delay, headless, mode, messages, maxsend }, progress)
-    .then(() => { current.running = false; })
-    .catch(err => { progress.error = String(err); progress.done = true; current.running = false; });
-
-  res.json({ ok: true });
 });
 
-app.post('/stop', (req, res) => {
-  if (!current.running) return res.json({ ok: false, msg: 'no task' });
-  current.progress.stopped = true;
-  res.json({ ok: true });
-});
-
-app.get('/status', (req, res) => {
-  if (!current.progress) return res.json({ running: false, progress: null });
-  res.json({ running: current.running && !current.progress.done && !current.progress.stopped, progress: current.progress });
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
-    
+app.listen(10000, () => console.log("✅ Server Started on Port 10000"));
