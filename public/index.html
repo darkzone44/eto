@@ -1,25 +1,98 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<body style="background:#000;color:#0f0;text-align:center;padding-top:40px;font-family:Arial;">
-<h2>FB E2EE Auto Sender</h2>
-<input id="cookie" placeholder="Paste Cookies" style="width:300px;"><br><br>
-<input id="thread" placeholder="Thread ID" style="width:300px;"><br><br>
-<input id="message" placeholder="Message" style="width:300px;"><br><br>
-<input id="delay" placeholder="Delay (ms)" style="width:300px;"><br><br>
-<button onclick="start()" style="padding:10px 20px;">START</button>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FB Messenger Sender — UI</title>
+<style>
+body{font-family:Arial, sans-serif;background:#041025;color:#e8f7ff;padding:18px}
+.container{max-width:980px;margin:0 auto;display:flex;gap:12px}
+.col{flex:1;background:rgba(255,255,255,0.03);padding:12px;border-radius:10px}
+textarea,input,select{width:100%;padding:8px;margin-top:6px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit}
+button{padding:8px 12px;margin-top:8px;border-radius:8px;border:0;cursor:pointer}
+.btnA{background:#00b7ff;color:#001}
+.btnB{background:#00ffa3;color:#001}
+.btnC{background:#ff6b9a;color:#111}
+.status{margin-top:10px;white-space:pre-wrap;background:rgba(0,0,0,0.25);padding:8px;border-radius:6px;min-height:90px}
+.bookmark{display:inline-block;padding:6px 8px;background:#081a2a;border-radius:6px;color:#0ff;text-decoration:none;margin-top:6px}
+</style>
+</head>
+<body>
+<h2>FB Messenger — End-to-end Sender</h2>
+<div class="container">
+  <div class="col">
+    <h4>Auth (Cookie)</h4>
+    <textarea id="cookie" rows="4" placeholder="Paste cookie: datr=...; fr=...; sb=...;"></textarea>
+    <div>Need cookie helper? <a id="bm" class="bookmark">Copy Bookmarklet</a> (create bookmark and run on facebook.com)</div>
+
+    <h4>Targets</h4>
+    <input id="thread" placeholder="Thread ID (single) e.g. 6156..." />
+    <textarea id="targets" rows="3" placeholder="For bulk: put one target id per line (optional)"></textarea>
+
+    <h4>Delay ms</h4>
+    <input id="delay" placeholder="3000" value="3000" />
+    <h4>Max Send (0 = unlimited)</h4>
+    <input id="maxsend" placeholder="0" />
+  </div>
+
+  <div class="col">
+    <h4>Message(s)</h4>
+    <textarea id="messages" rows="12" placeholder="One message per line"></textarea>
+
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btnA" id="btnA">A — Send One (Just Ek Button)</button>
+      <button class="btnB" id="btnB">B — Auto Loop</button>
+      <button class="btnC" id="btnC">C — Bulk Send</button>
+    </div>
+
+    <div class="status" id="status">Idle — no task started</div>
+  </div>
+</div>
 
 <script>
-function start(){
- fetch("/start",{
-  method:"POST",
-  headers:{"Content-Type":"application/json"},
-  body:JSON.stringify({
-   cookie:document.getElementById("cookie").value,
-   threadId:document.getElementById("thread").value,
-   message:document.getElementById("message").value,
-   delay:document.getElementById("delay").value
-  })
- }).then(r=>r.json()).then(d=>alert(JSON.stringify(d)));
+function copyBookmarkletToClipboard() {
+  const code = `javascript:(()=>{try{navigator.clipboard.writeText(document.cookie); alert('Cookie copied to clipboard');}catch(e){prompt('Copy cookie','document.cookie');}})()`;
+  navigator.clipboard.writeText(code).then(()=> alert('Bookmarklet copied to clipboard. Make a bookmark and paste the code as URL, then open facebook.com and click it.'));
+}
+document.getElementById('bm').addEventListener('click', copyBookmarkletToClipboard);
+
+async function postJSON(path, body) {
+  const r = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  return r.json();
+}
+
+async function startTask(mode, bulk=false) {
+  const cookie = document.getElementById('cookie').value.trim();
+  const thread = document.getElementById('thread').value.trim();
+  const targetsRaw = document.getElementById('targets').value.trim();
+  const targets = targetsRaw ? targetsRaw.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean) : null;
+  const delay = parseInt(document.getElementById('delay').value || '3000', 10);
+  const maxsend = parseInt(document.getElementById('maxsend').value || '0', 10);
+  const messages = document.getElementById('messages').value.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+  if (!cookie) { alert('Paste cookie'); return; }
+  if (!messages.length) { alert('Add message lines'); return; }
+  if (mode === 'single' && !thread) { alert('Provide thread ID for Single send'); return; }
+  document.getElementById('status').innerText = 'Starting...';
+  const body = { cookie, thread: thread || null, delay, mode, messages, maxsend, targets };
+  const r = await postJSON('/start', body);
+  document.getElementById('status').innerText = r.ok ? 'Started — polling status...' : ('Start failed: '+JSON.stringify(r));
+  if (r.ok) pollStatus();
+}
+
+document.getElementById('btnA').addEventListener('click', ()=>startTask('single'));
+document.getElementById('btnB').addEventListener('click', ()=>startTask('loop'));
+document.getElementById('btnC').addEventListener('click', ()=>startTask('bulk'));
+
+async function pollStatus(){
+  try {
+    const res = await fetch('/status');
+    const j = await res.json();
+    document.getElementById('status').innerText = 'Running: ' + j.running + '\\nSent: ' + (j.progress?.sentCount || 0) + '\\nLast: ' + (j.progress?.lastResult||'') + '\\nError: ' + (j.progress?.error||'') + '\\n\\nLogs:\\n' + (j.logs||[]).slice(-20).join('\\n');
+    if (j.running) setTimeout(pollStatus, 1500);
+  } catch (e) {
+    const txt = await (await fetch('/status').catch(()=>({text:async()=>'<no-response>'}))).text();
+    document.getElementById('status').innerText = 'Status fetch error: ' + e + '\\nRaw:\\n' + txt;
+  }
 }
 </script>
 </body>
