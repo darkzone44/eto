@@ -1,6 +1,6 @@
 import express from "express";
-import chromium from "chromium";
 import puppeteer from "puppeteer-core";
+import chromium from "chromium";
 
 const app = express();
 app.use(express.json());
@@ -10,7 +10,7 @@ app.post("/start", async (req, res) => {
   const { cookie, threadId, message, delay } = req.body;
 
   if (!cookie || !threadId || !message || !delay) {
-    return res.json({ error: "Missing required fields" });
+    return res.json({ error: "Missing fields" });
   }
 
   try {
@@ -21,35 +21,47 @@ app.post("/start", async (req, res) => {
     });
 
     const page = await browser.newPage();
-    await page.setUserAgent(
-      "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/127 Safari/537.36"
-    );
 
-    await page.setCookie(...cookie.split(";").map(c => {
-      let [name, value] = c.trim().split("=");
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+
+    // ✅ Set cookies correctly
+    const cookieArr = cookie.split(";").map(c => {
+      const [name, ...rest] = c.trim().split("=");
+      const value = rest.join("=");
       return { name, value, domain: ".facebook.com" };
-    }));
+    });
+    await page.setCookie(...cookieArr);
 
+    // ✅ Open chat
     await page.goto(`https://www.messenger.com/t/${threadId}`, {
       waitUntil: "networkidle2"
     });
 
+    // ✅ Wait for input box
+    await page.waitForSelector('div[role="textbox"]', { timeout: 25000 });
+
     let sent = 0;
-    const interval = setInterval(async () => {
+
+    const sendMessage = async () => {
       try {
-        await page.type('[contenteditable="true"]', message);
+        await page.focus('div[role="textbox"]');
+        await page.keyboard.type(message, { delay: 30 });
         await page.keyboard.press("Enter");
         sent++;
-        console.log(`Message Sent: ${sent}`);
+        console.log(`✅ Sent: ${sent}`);
       } catch (err) {
-        console.log("Send failed:", err.message);
+        console.log("⚠️ Send error:", err.message);
       }
-    }, delay);
+    };
 
-    res.json({ status: "running", message: "Message sending started." });
+    sendMessage(); // send first message
+    setInterval(sendMessage, Number(delay));
+
+    return res.json({ status: "started", detail: "Sending messages..." });
+
   } catch (err) {
-    res.json({ error: err.message });
+    return res.json({ error: err.message });
   }
 });
 
-app.listen(10000, () => console.log("✅ Server Started on Port 10000"));
+app.listen(10000, () => console.log("✅ Server running on port 10000"));
