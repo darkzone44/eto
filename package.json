@@ -1,16 +1,10 @@
 {
-  "name": "fb-messenger-automation",
-  "version": "1.0.1",
-  "description": "Messenger automation with web UI (Puppeteer + Express)",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "name": "fb-messenger-fast",
+  "version": "1.0.0",
   "dependencies": {
     "express": "^4.18.2",
-    "puppeteer": "^20.0.0",
-    "multer": "^1.4.5-lts.1",
     "body-parser": "^1.20.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "puppeteer-core": "^22.0.0"
   }
 }
