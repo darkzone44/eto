@@ -2,10 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { chromium } = require("playwright");
+const path = require("path");
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+// Serve HTML UI
+app.use(express.static(path.join(__dirname, "public")));
 
 let task = { running:false, stop:false };
 
@@ -30,17 +34,14 @@ async function sendMessages({ cookie, thread, messages, delay }) {
   const page = await context.newPage();
 
   await page.goto(`https://www.messenger.com/t/${thread}`, { waitUntil: "domcontentloaded" });
-
   const inputSelector = `div[contenteditable="true"][role="textbox"]`;
   await page.waitForSelector(inputSelector);
 
   for (const msg of messages) {
     if (task.stop) break;
-
     await page.click(inputSelector);
     await page.type(inputSelector, msg);
     await page.keyboard.press("Enter");
-
     await page.waitForTimeout(parseInt(delay));
   }
 
@@ -48,7 +49,7 @@ async function sendMessages({ cookie, thread, messages, delay }) {
   task.running = false;
 }
 
-app.post("/start", async (req, res) => {
+app.post("/start", (req, res) => {
   if (task.running) return res.json({ error: "Already running" });
 
   const { cookie, thread, messages, delay } = req.body;
