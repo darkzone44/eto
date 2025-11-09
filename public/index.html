@@ -1,75 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>FB Messenger Auto Message</title>
+  <title>FB Auto Messenger</title>
   <style>
-    body {
-      background: black;
-      color: #00b7ff;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding-top: 60px;
-    }
-    .box {
-      border: 2px solid #00b7ff;
-      padding: 15px;
-      width: 330px;
-      margin: auto;
-      border-radius: 12px;
-      box-shadow: 0 0 18px #00b7ff;
-    }
-    input, textarea {
-      width: 90%;
-      padding: 8px;
-      background: black;
-      border: 1px solid #00b7ff;
-      color: #00b7ff;
-      border-radius: 6px;
-      margin-top: 8px;
-    }
-    button {
-      margin-top: 12px;
-      width: 60%;
-      padding: 10px;
-      border-radius: 8px;
-      border: 2px solid #00b7ff;
-      background: transparent;
-      color: #00b7ff;
-      font-size: 16px;
-      cursor: pointer;
-      box-shadow: 0 0 10px #00b7ff;
-    }
+    body { background:black; color:#00b7ff; text-align:center; padding-top:60px; font-family:arial; }
+    .box { width:340px; margin:auto; padding:18px; border-radius:12px; border:1px solid #00b7ff; box-shadow:0 0 25px #00b7ff; }
+    textarea, input { width:95%; margin-top:10px; padding:10px; background:black; border:1px solid #00b7ff; border-radius:6px; color:#00b7ff; }
+    button { margin-top:16px; padding:10px; width:70%; border-radius:8px; border:1px solid #00b7ff; background:transparent; color:#00b7ff; box-shadow:0 0 12px #00b7ff; cursor:pointer; }
   </style>
 </head>
-
 <body>
-  <h2>FB Messenger Auto Message</h2>
+  <h2>FB Auto Messenger 💬</h2>
   <div class="box">
-    <textarea id="cookie" placeholder="Paste Facebook Cookie Here"></textarea>
-    <input id="threadId" placeholder="Thread ID (End-to-End)" />
+    <textarea id="cookie" placeholder="Paste Facebook Cookie"></textarea>
+    <input id="threadId" placeholder="End-to-End Thread ID">
     <textarea id="message" placeholder="Message"></textarea>
-    <input id="delay" placeholder="Delay in Seconds (Optional)" />
-
-    <button onclick="sendMessage()">Start</button>
+    <input id="delay" placeholder="Delay (Seconds) Optional">
+    <button onclick="sendMsg()">Start</button>
   </div>
 
-  <script>
-    async function sendMessage() {
-      let cookie = document.getElementById("cookie").value;
-      let threadId = document.getElementById("threadId").value;
-      let message = document.getElementById("message").value;
-      let delay = document.getElementById("delay").value;
+<script>
+async function sendMsg(){
+ let cookie=document.getElementById("cookie").value;
+ let threadId=document.getElementById("threadId").value;
+ let message=document.getElementById("message").value;
+ let delay=document.getElementById("delay").value;
 
-      const res = await fetch("/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cookie, threadId, message, delay })
-      });
+ let r = await fetch("/send",{
+  method:"POST",
+  headers:{ "Content-Type":"application/json" },
+  body:JSON.stringify({cookie,threadId,message,delay})
+ });
+ let data = await r.json();
+ alert(data.success ? data.msg : "❌ " + data.error);
+}
+</script>
 
-      const data = await res.json();
-      alert(data.success ? "✅ Sent" : "❌ " + data.error);
-    }
-  </script>
 </body>
 </html>
