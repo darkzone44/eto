@@ -1,88 +1,71 @@
 const express = require("express");
+const cors = require("cors");
 const bodyParser = require("body-parser");
 const { chromium } = require("playwright");
 
-let browser;
-let page;
-let isRunning = false;
-let sentCount = 0;
-
-async function loginWithCookie(cookie) {
-    browser = await chromium.launch({ headless: false });
-    page = await browser.newPage();
-
-    await page.goto("https://www.facebook.com/");
-
-    const cookieParts = cookie.split(";").map(c => {
-        const [name, value] = c.trim().split("=");
-        return { name, value, domain: ".facebook.com" };
-    });
-
-    await page.context().addCookies(cookieParts);
-    await page.goto("https://www.facebook.com/messages");
-    await page.waitForTimeout(4000);
-}
-
-async function sendMessageToThread(threadID, message) {
-    await page.goto(`https://www.facebook.com/messages/t/${threadID}`);
-    await page.waitForSelector('[contenteditable="true"]');
-    await page.type('[contenteditable="true"]', message);
-    await page.keyboard.press("Enter");
-    sentCount++;
-}
-
-async function startTask(mode, target, message, delay, bulkList) {
-    isRunning = true;
-
-    if (mode === "singleUID") {
-        await sendMessageToThread(target, message);
-
-    } else if (mode === "group") {
-        await sendMessageToThread(target, message);
-
-    } else if (mode === "bulk") {
-        for (const uid of bulkList) {
-            if (!isRunning) break;
-            await sendMessageToThread(uid, message);
-            await page.waitForTimeout(1500);
-        }
-
-    } else if (mode === "loop") {
-        while (isRunning) {
-            await sendMessageToThread(target, message);
-            await page.waitForTimeout(delay);
-        }
-    }
-}
-
 const app = express();
+app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(__dirname));
 
-app.post("/login", async (req, res) => {
-    try {
-        await loginWithCookie(req.body.cookie);
-        res.send({ ok: true });
-    } catch (e) {
-        res.send({ ok: false, error: e.toString() });
-    }
-});
+let task = { running:false, stop:false };
+
+function parseCookies(str) {
+  return str.split(";").map(p => {
+    let [name, ...v] = p.trim().split("=");
+    return { name, value: v.join("="), domain: ".facebook.com", path: "/" };
+  });
+}
+
+async function sendMessages({ cookie, thread, messages, delay }) {
+  task.running = true;
+  task.stop = false;
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox","--disable-setuid-sandbox"]
+  });
+
+  const context = await browser.newContext();
+  await context.addCookies(parseCookies(cookie));
+  const page = await context.newPage();
+
+  await page.goto(`https://www.messenger.com/t/${thread}`, { waitUntil: "domcontentloaded" });
+
+  const inputSelector = `div[contenteditable="true"][role="textbox"]`;
+  await page.waitForSelector(inputSelector);
+
+  for (const msg of messages) {
+    if (task.stop) break;
+
+    await page.click(inputSelector);
+    await page.type(inputSelector, msg);
+    await page.keyboard.press("Enter");
+
+    await page.waitForTimeout(parseInt(delay));
+  }
+
+  await browser.close();
+  task.running = false;
+}
 
 app.post("/start", async (req, res) => {
-    const { mode, target, message, delay, bulk } = req.body;
-    sentCount = 0;
+  if (task.running) return res.json({ error: "Already running" });
 
-    startTask(mode, target, message, delay, bulk);
-    res.send({ ok: true });
+  const { cookie, thread, messages, delay } = req.body;
+  if (!cookie || !thread || !messages) return res.json({ error: "Missing fields" });
+
+  sendMessages({ cookie, thread, messages, delay });
+  res.json({ ok: true, running: true });
 });
 
 app.post("/stop", (req, res) => {
-    isRunning = false;
-    res.send({ ok: true });
+  task.stop = true;
+  res.json({ ok: true });
 });
 
 app.get("/status", (req, res) => {
-    res.send({ running: isRunning, sent: sentCount });
+  res.json({ running: task.running });
 });
 
-app.listen(3000, () => console.log("✅ Server Running: http://localhost:3000")); 
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`RUNNING ON PORT ${PORT}`));
